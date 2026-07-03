@@ -1,0 +1,139 @@
+Create a modern, professional, and aesthetic full-stack web application for a wholesale namkeen business.
+
+Business Details:
+- The business sells namkeen in wholesale to 100+ shops.
+- Each shop (customer) may have different pricing for the same product.
+- The system should be similar to SNS wholesale management software.
+
+--------------------------------------------------
+
+🌐 FRONTEND (Customer Side)
+
+1. Landing Page (For New Users):
+- Show product catalog (Namkeen items with images, name, base price).
+- Clean, modern UI (like Shopify or premium SaaS).
+- "Send Inquiry" button instead of direct purchase.
+- Inquiry form sends message to admin.
+
+2. Login System:
+- Separate login for:
+  - Customer
+  - Admin
+
+3. Customer Panel:
+After login:
+- View personalized product catalog (with custom pricing per shop).
+- Search & filter products.
+- Add products to cart with quantity.
+- Place order.
+
+4. Order Flow:
+- After placing order:
+  - Generate bill/invoice
+  - Show bill preview
+  - Option to send bill via WhatsApp to admin
+  - Even if not sent, order should appear in admin panel
+
+5. My Orders Section:
+- Show all previous orders
+- Include:
+  - Date
+  - Products
+  - Quantity
+  - Total amount
+- Add filters like:
+  - Last 7 days
+  - Last 30 days
+  - Last 3 months
+(Like bank statement UI)
+
+--------------------------------------------------
+
+🛠️ ADMIN PANEL
+
+1. Dashboard:
+- Total customers
+- Total orders
+- Revenue
+- Graphs (sales analytics)
+
+2. Customer Management:
+- Add new customer (shop)
+- Edit / delete customer
+- Set custom pricing per product per customer
+
+3. Product Management:
+- Add product
+- Edit product
+- Delete product
+- Mark out of stock
+
+4. Pricing Logic:
+- Each product must support different price for different customers
+- Admin can manually set price per customer
+
+5. Orders Management:
+- View all orders
+- Filter orders by date (like statement view)
+- Open order → view full bill
+- Print bill option
+- Delete order option
+
+--------------------------------------------------
+
+📦 STOCK / PURCHASE MANAGEMENT (VERY IMPORTANT)
+
+Create a module similar to Excel sheet:
+
+Columns:
+- Serial Number
+- Date
+- Company Name (Supplier)
+- Product Name
+- Quantity (KG)
+- Total Price
+
+Features:
+- Admin can manually add entries
+- Edit/delete entries
+- Maintain stock history
+
+--------------------------------------------------
+
+⚙️ TECH FEATURES
+
+- Use modern tech stack:
+  - Frontend: React / Next.js
+  - Backend: Node.js / Express
+  - Database: MongoDB / PostgreSQL
+
+- Authentication (JWT or session based)
+- Role-based access (Admin / Customer)
+- Responsive design (mobile + desktop)
+- Clean UI with soft colors, shadows, cards
+
+--------------------------------------------------
+
+🎨 DESIGN REQUIREMENTS
+
+- Premium SaaS look
+- Smooth animations
+- Dashboard with charts
+- Card-based product UI
+- Minimal and aesthetic layout
+
+--------------------------------------------------
+
+📲 EXTRA FEATURES
+
+- WhatsApp integration for sending order bill
+- Invoice generation (PDF)
+- Search optimization
+- Fast loading
+
+--------------------------------------------------
+
+Deliver:
+- Full working code
+- Folder structure
+- Setup instructions

@@ -1,0 +1,24 @@
+{
+  "name": "@workspace/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "hello": "tsx ./src/hello.ts",
+    "seed": "tsx ./src/seed.ts",
+    "flush-stock": "tsx ./src/flush-stock.ts",
+    "check-db": "tsx ./src/check-db.ts",
+    "check-products": "tsx ./src/check-products.ts",
+    "check-analytics": "tsx ./src/check-analytics.ts",
+    "run-update": "tsx ./src/run-update.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "bcryptjs": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  }
+}

@@ -1,0 +1,1397 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Namkeen Wholesale Management API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: auth
+  - name: products
+  - name: customers
+  - name: pricing
+  - name: orders
+  - name: inquiries
+  - name: stock
+  - name: dashboard
+  - name: Storage
+    description: Object storage upload and serving endpoints.
+paths:
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+        '500':
+          description: Failed to generate upload URL.
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an uploaded object
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Object not found.
+        '500':
+          description: Failed to serve object.
+
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in as admin or customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current session info
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List products (with personalized pricing if customer is logged in)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a product (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update a product (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete a product (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List all customers (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get a customer (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /customers/{id}/pricing:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: getCustomerPricing
+      tags: [pricing]
+      summary: List pricing rows (one per product) for this customer (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomerProductPrice"
+    put:
+      operationId: setCustomerPricing
+      tags: [pricing]
+      summary: Set custom price for a single product (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPricingBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List orders (admin sees all, customer sees own)
+      parameters:
+        - name: range
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, all]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrderSummary"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place an order (customer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get full order with line items
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+    delete:
+      operationId: deleteOrder
+      tags: [orders]
+      summary: Delete an order (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /inquiries:
+    get:
+      operationId: listInquiries
+      tags: [inquiries]
+      summary: List inquiries (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Inquiry"
+    post:
+      operationId: createInquiry
+      tags: [inquiries]
+      summary: Create an inquiry from the public landing page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInquiryBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inquiry"
+
+  /inquiries/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    delete:
+      operationId: deleteInquiry
+      tags: [inquiries]
+      summary: Delete an inquiry (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /orders/{id}/payment:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      operationId: recordOrderPayment
+      tags: [orders]
+      summary: Record a payment for an order (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordPaymentBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderSummary"
+
+  /orders/{id}/convert-gst:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      operationId: convertOrderGst
+      tags: [orders]
+      summary: Convert order to GST bill (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConvertGstResponse"
+
+
+
+  /stock/suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [stock]
+      summary: List all wholesale suppliers (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+    post:
+      operationId: createSupplier
+      tags: [stock]
+      summary: Create a supplier (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
+  /stock/suppliers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: getSupplier
+      tags: [stock]
+      summary: Get details of a supplier (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+    patch:
+      operationId: updateSupplier
+      tags: [stock]
+      summary: Update a supplier (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSupplierBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+    delete:
+      operationId: deleteSupplier
+      tags: [stock]
+      summary: Delete a supplier (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /stock/suppliers/{id}/entries:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: year
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: month
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: day
+        in: query
+        required: false
+        schema:
+          type: string
+    get:
+      operationId: listSupplierEntries
+      tags: [stock]
+      summary: List stock entries for a supplier (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockEntry"
+
+  /stock:
+    get:
+      operationId: listStockEntries
+      tags: [stock]
+      summary: List stock/purchase entries (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockEntry"
+    post:
+      operationId: createStockEntry
+      tags: [stock]
+      summary: Add a stock/purchase entry (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStockEntryBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockEntry"
+
+  /stock/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      operationId: updateStockEntry
+      tags: [stock]
+      summary: Update a stock entry (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStockEntryBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockEntry"
+    delete:
+      operationId: deleteStockEntry
+      tags: [stock]
+      summary: Delete a stock entry (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /stock/{id}/payment:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      operationId: recordStockPayment
+      tags: [stock]
+      summary: Record a supplier payment for a stock entry (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordSupplierPaymentBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockEntry"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Admin dashboard summary stats
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/sales-trend:
+    get:
+      operationId: getSalesTrend
+      tags: [dashboard]
+      summary: Daily sales totals for the last 30 days (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesTrendPoint"
+
+  /dashboard/top-products:
+    get:
+      operationId: getTopProducts
+      tags: [dashboard]
+      summary: Top selling products by revenue (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopProduct"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent activity feed (admin) - latest orders + inquiries
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    AuthSession:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        role:
+          type: string
+          enum: [admin, customer, guest]
+        userId:
+          type: integer
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        shopName:
+          type: string
+          nullable: true
+      required: [authenticated, role]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        unit:
+          type: string
+        basePrice:
+          type: number
+        customerPrice:
+          type: number
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        inStock:
+          type: boolean
+        availableStock:
+          type: number
+        createdAt:
+          type: string
+      required: [id, name, unit, basePrice, inStock, availableStock, createdAt]
+
+    CreateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        unit:
+          type: string
+        basePrice:
+          type: number
+        imageUrl:
+          type: string
+          nullable: true
+        inStock:
+          type: boolean
+      required: [name, unit, basePrice]
+
+    UpdateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        unit:
+          type: string
+        basePrice:
+          type: number
+        imageUrl:
+          type: string
+          nullable: true
+        inStock:
+          type: boolean
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        shopName:
+          type: string
+        ownerName:
+          type: string
+          nullable: true
+        username:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        alwaysGst:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, shopName, username, alwaysGst, createdAt]
+
+    CreateCustomerBody:
+      type: object
+      properties:
+        shopName:
+          type: string
+        ownerName:
+          type: string
+          nullable: true
+        username:
+          type: string
+        password:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        alwaysGst:
+          type: boolean
+      required: [shopName, username, password]
+
+    UpdateCustomerBody:
+      type: object
+      properties:
+        shopName:
+          type: string
+        ownerName:
+          type: string
+          nullable: true
+        username:
+          type: string
+        password:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        alwaysGst:
+          type: boolean
+
+    CustomerProductPrice:
+      type: object
+      properties:
+        productId:
+          type: integer
+        productName:
+          type: string
+        unit:
+          type: string
+        basePrice:
+          type: number
+        customPrice:
+          type: number
+          nullable: true
+      required: [productId, productName, unit, basePrice]
+
+    SetPricingBody:
+      type: object
+      properties:
+        productId:
+          type: integer
+        customPrice:
+          type: number
+          nullable: true
+      required: [productId]
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        unit:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        lineTotal:
+          type: number
+      required: [id, productId, productName, unit, quantity, unitPrice, lineTotal]
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        customerName:
+          type: string
+        shopName:
+          type: string
+        status:
+          type: string
+        billingType:
+          type: string
+        sequenceNumber:
+          type: integer
+        cgst:
+          type: number
+        sgst:
+          type: number
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+        paymentStatus:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        phone:
+          type: string
+        createdAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+      required: [id, customerId, customerName, shopName, status, billingType, sequenceNumber, cgst, sgst, totalAmount, paidAmount, paymentStatus, phone, createdAt, items]
+
+    OrderSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        shopName:
+          type: string
+        billingType:
+          type: string
+        sequenceNumber:
+          type: integer
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+        paymentStatus:
+          type: string
+        cgst:
+          type: number
+        sgst:
+          type: number
+        itemCount:
+          type: integer
+        status:
+          type: string
+        isPrinted:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, customerId, shopName, billingType, sequenceNumber, totalAmount, paidAmount, paymentStatus, cgst, sgst, itemCount, status, isPrinted, createdAt]
+
+    CreateOrderItemBody:
+      type: object
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: number
+      required: [productId, quantity]
+
+    CreateOrderBody:
+      type: object
+      properties:
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateOrderItemBody"
+      required: [items]
+
+    Inquiry:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        shopName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+        email:
+          type: string
+          nullable: true
+        message:
+          type: string
+        createdAt:
+          type: string
+      required: [id, name, phone, message, createdAt]
+
+    CreateInquiryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        shopName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+        email:
+          type: string
+          nullable: true
+        message:
+          type: string
+      required: [name, phone, message]
+
+    StockEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        supplierName:
+          type: string
+        productName:
+          type: string
+        quantityKg:
+          type: number
+        totalPrice:
+          type: number
+        amountPaidToSupplier:
+          type: number
+        purchasePaymentStatus:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, date, supplierName, productName, quantityKg, totalPrice, amountPaidToSupplier, purchasePaymentStatus, createdAt]
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        mainProducts:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, name, createdAt]
+
+    CreateSupplierBody:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        mainProducts:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [name]
+
+    UpdateSupplierBody:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        mainProducts:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    RecordPaymentBody:
+      type: object
+      required: [paidAmount]
+      properties:
+        paidAmount:
+          type: number
+          minimum: 0
+
+    RecordSupplierPaymentBody:
+      type: object
+      required: [amountPaidToSupplier]
+      properties:
+        amountPaidToSupplier:
+          type: number
+          minimum: 0
+
+    CreateStockEntryBody:
+      type: object
+      properties:
+        date:
+          type: string
+        supplierName:
+          type: string
+        productName:
+          type: string
+        quantityKg:
+          type: number
+        totalPrice:
+          type: number
+        notes:
+          type: string
+          nullable: true
+      required: [date, supplierName, productName, quantityKg, totalPrice]
+
+    UpdateStockEntryBody:
+      type: object
+      properties:
+        date:
+          type: string
+        supplierName:
+          type: string
+        productName:
+          type: string
+        quantityKg:
+          type: number
+        totalPrice:
+          type: number
+        notes:
+          type: string
+          nullable: true
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalCustomers:
+          type: integer
+        totalProducts:
+          type: integer
+        totalOrders:
+          type: integer
+        totalRevenue:
+          type: number
+        ordersThisMonth:
+          type: integer
+        revenueThisMonth:
+          type: number
+        pendingInquiries:
+          type: integer
+        lowStockProducts:
+          type: integer
+        newOrdersCount:
+          type: integer
+        yearlySalesTotal:
+          type: number
+        yearlySalesPending:
+          type: number
+        yearlyPurchasesTotal:
+          type: number
+        yearlyPurchasesPending:
+          type: number
+      required:
+        - totalCustomers
+        - totalProducts
+        - totalOrders
+        - totalRevenue
+        - ordersThisMonth
+        - revenueThisMonth
+        - pendingInquiries
+        - lowStockProducts
+        - newOrdersCount
+        - yearlySalesTotal
+        - yearlySalesPending
+        - yearlyPurchasesTotal
+        - yearlyPurchasesPending
+
+    SalesTrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        revenue:
+          type: number
+        orders:
+          type: integer
+      required: [date, revenue, orders]
+
+    TopProduct:
+      type: object
+      properties:
+        productId:
+          type: integer
+        productName:
+          type: string
+        quantitySold:
+          type: number
+        revenue:
+          type: number
+      required: [productId, productName, quantitySold, revenue]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [order, inquiry]
+        title:
+          type: string
+        subtitle:
+          type: string
+        amount:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, type, title, subtitle, createdAt]
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: MIME type of the file (e.g. image/jpeg).
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. /objects/uploads/uuid).
+        metadata:
+          $ref: '#/components/schemas/UploadUrlRequest'
+
+    ConvertGstResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+

@@ -1,0 +1,62 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "uLYzN4XQ6ODUfqre-0_tv"
+uri = "file://artifacts/namkeen/src/assets/hero.png"
+type = "image"
+title = "Hero banner of Indian snacks"
+
+[[generated]]
+id = "REPv2DZ1zk5pJSoEGGOAj"
+uri = "file://artifacts/namkeen/src/assets/bhujia.png"
+type = "image"
+title = "Bhujia in a bowl"
+
+[[generated]]
+id = "UNFO_sT0XqPv2XC6OkifW"
+uri = "file://artifacts/namkeen/src/assets/sev.png"
+type = "image"
+title = "Crispy Sev in a bowl"
+
+[[generated]]
+id = "_SvzSnKPCQ8_L6OCbTC1s"
+uri = "file://artifacts/namkeen/src/assets/chakli.png"
+type = "image"
+title = "Spiral Chakli on a plate"
+
+[[generated]]
+id = "ykfvaIMdsFyAsdTIeCrh0"
+uri = "file://artifacts/namkeen/src/assets/mathri.png"
+type = "image"
+title = "Flaky Mathri with spices"
+
+[[generated]]
+id = "oH4_c6_AfroodUQw07LGE"
+uri = "file://artifacts/namkeen/src/assets/moong_dal.png"
+type = "image"
+title = "Fried Moong Dal snack"
+
+[[generated]]
+id = "wTpjSmymaD6w2lyYDMLP6"
+uri = "file://artifacts/namkeen/src/assets/masala_peanuts.png"
+type = "image"
+title = "Spicy Masala Peanuts"
+
+[[generated]]
+id = "eeKFMCgGCQtfZi77rwiI-"
+uri = "file://artifacts/namkeen/src/assets/aloo_bhujia.png"
+type = "image"
+title = "Spicy Aloo Bhujia"
+
+[[generated]]
+id = "E2QCBkkoXYlwg30IWgJNj"
+uri = "file://artifacts/namkeen/src/assets/navratan_mix.png"
+type = "image"
+title = "Colorful Navratan Mix"
+
+[[generated]]
+id = "VSxOPlnNYo0aXZZ3ptqQl"
+uri = "file://artifacts/namkeen/src/assets/khatta_meetha.png"
+type = "image"
+title = "Sweet and Sour Mixture"

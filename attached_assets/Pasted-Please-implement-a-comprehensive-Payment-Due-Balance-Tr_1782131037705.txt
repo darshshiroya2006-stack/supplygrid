@@ -1,0 +1,28 @@
+Please implement a comprehensive "Payment & Due Balance Tracking System" across BOTH the Orders (Sales) and Stock Ledger (Purchases) modules simultaneously.
+
+Here is the exact technical logic required for both modules:
+
+--- MODULE 1: ADMIN ORDERS (SALES TRACKING) ---
+1. Schema & Data Fields:
+   - Update the Order model to include `paidAmount` (Number, default: 0) and `paymentStatus` (String, default: "Pending").
+2. Core Logic:
+   - If `paidAmount === 0`, status is "Pending".
+   - If `paidAmount > 0` and less than `totalAmount`, status is "Partially Paid" and explicitly display the remaining balance (`totalAmount - paidAmount`). (e.g., Total ₹2150, Paid ₹2000 -> Pending ₹150).
+   - If `paidAmount === totalAmount`, status is "Fully Paid".
+3. UI Updates (`artifacts/namkeen/src/pages/admin/orders.tsx`):
+   - Add a "Payment Status / Due Balance" column to the Orders table.
+   - Add a "Record Payment" action button next to the order actions. Clicking it must trigger a modal with an input field to update `paidAmount` via a backend API patch.
+
+--- MODULE 2: STOCK LEDGER (PURCHASE TRACKING) ---
+1. Schema & Data Fields:
+   - Update the Stock Ledger/Purchase model to include `amountPaidToSupplier` (Number, default: 0) and `purchasePaymentStatus` (String, default: "Pending").
+2. Core Logic:
+   - Calculate total cost if needed (`quantity * unitPrice`).
+   - If `amountPaidToSupplier === 0`, status is "Pending".
+   - If `amountPaidToSupplier > 0` and less than total cost, status is "Partially Paid" and explicitly calculate/display the remaining balance owed to the supplier (`totalCost - amountPaidToSupplier`).
+   - If `amountPaidToSupplier === totalCost`, status is "Fully Paid".
+3. UI Updates (`artifacts/namkeen/src/pages/admin/stock.tsx`):
+   - Add a "Supplier Payment Status" column to the Stock Ledger table.
+   - Add a "Pay Supplier" action button that opens a modal to record payments made to suppliers, updating the backend cleanly.
+
+Please safely execute this global database and frontend refactor across both modules without disrupting existing features.

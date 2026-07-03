@@ -1,0 +1,29 @@
+- [x] Restructure backend summary endpoint to handle dynamic year/month boundaries
+- [x] Scope totalOrders db query to selected startDate/endDate in summary API
+- [x] Overhaul Card 1 to display "Total Orders" and bind it to date-scoped analytics total
+- [x] Keep custom unprinted order notification ping dot and footer alert logic
+- [x] Replace legacy 7-day/30-day buttons with YEAR, MONTH dropdowns and custom Day/Date pickers on Orders page
+- [x] Add orange border and background highlighting for unprocessed/unprinted order rows
+- [x] Format processed order status badges as uppercase bold PROCESSED badges
+- [x] Mount matching YEAR, MONTH, and Day/Date picker filters on Stock page
+- [x] Verify dynamic filter updates and visual highlights using browser subagent
+- [x] Remove redundant Ledger ID column from Purchases Procurement Ledger modal table layout
+- [x] Add pl-6 to Supplier Name table header and body cells to ensure beautiful alignment
+- [x] Verify procurement ledger visual updates using browser subagent
+- [x] Convert static cart item quantity displays to fully interactive, editable input type number
+- [x] Add direct input change handlers and fallback guards for quantities in wholesale catalog
+- [x] Add dynamic Popover Date Picker in dashboard header and wire to api-server analytics dates
+- [x] Map cache invalidation callbacks (`/api/dashboard/summary` and `analytics` query keys) onto all mutation flows (Orders/Bill creations, Stock Ledger- [x] Update Database Schemas (users.ts, customers.ts, products.ts, orders.ts)
+- [x] Run Database Pushes
+- [x] Update Session Role Types and Admin Helpers (session.ts)
+- [x] Implement Registration API Endpoints (auth.ts)
+- [x] Apply Ownership and Filtration Checks to API Routers (products, customers, orders, dashboard)
+- [x] Create Sign-up Pages in Frontend (signup-wholesaler.tsx, signup-retailer.tsx)
+- [x] Update Router, Login, Layout, and Dashboard UI Pages (App, login, AdminLayout, admin/index)
+- [x] Verify Functionality and Run Typecheck carry forward balances up to selectedDate EOD instead of single day
+- [x] Rebuild and run api-server to ensure database query updates are served
+- [x] Verify cumulative closing stock calculation and ledger values using browser subagent
+- [x] Refactor dashboard and ledger queries to strictly implement standard Inventory Accounting Logic (Opening + Purchases - Sales) for daily and monthly periods
+- [x] Add Opening Stock (KG) column to Product Volume Ledger modal table
+- [x] Rebuild and restart api-server to serve the updated logic
+- [x] Verify standard accounting stock metrics and new columns using browser subagent
