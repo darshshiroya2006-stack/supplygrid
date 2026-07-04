@@ -5,23 +5,23 @@ let transporter: nodemailer.Transporter | null = null;
 async function getTransporter(): Promise<nodemailer.Transporter> {
   if (transporter) return transporter;
 
-  let host = process.env.SMTP_HOST;
-  // અહીં આપણે ડિફોલ્ટ પોર્ટ 465 સેટ કર્યો છે જે ફ્રી સર્વર પર બ્લોક નથી થતો
+  let host = process.env.SMTP_HOST || "smtp.gmail.com";
   let port = process.env.SMTP_PORT || "465"; 
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-
-  if (user && pass && !host && user.includes("@gmail.com")) {
-    host = "smtp.gmail.com";
-  }
 
   if (host && user && pass) {
     console.log(`[Email] Using SMTP transporter: ${host}:${port}`);
     transporter = nodemailer.createTransport({
       host,
       port: parseInt(port),
-      secure: true, // આ લાઈન ગૂગલના 465 પોર્ટ માટે SSL ફરજિયાત ચાલુ કરી દેશે
+      secure: true, // 465 પોર્ટ માટે SSL ઓન રહેશે
       auth: { user, pass },
+      // 📌 આ વધારાનું કન્ફિગરેશન ગૂગલ તરફથી આવતી 500 કનેક્શન એરરને રોકશે
+      tls: {
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.2"
+      }
     });
   } else {
     console.log("[Email] SMTP credentials not fully set. Creating Ethereal Test Email account...");
@@ -39,7 +39,6 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
       });
     } catch (err) {
       console.error("[Email] Failed to create Ethereal test account. Falling back to console-only transporter:", err);
-      // Fallback JSON logger transporter
       transporter = nodemailer.createTransport({
         jsonTransport: true,
       });
