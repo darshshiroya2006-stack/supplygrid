@@ -11,6 +11,8 @@ export type AuthSessionRole =
 
 export const AuthSessionRole = {
   admin: "admin",
+  wholesaler: "wholesaler",
+  retailer: "retailer",
   customer: "customer",
   guest: "guest",
 } as const;

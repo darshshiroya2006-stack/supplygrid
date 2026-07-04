@@ -134,6 +134,12 @@ paths:
       operationId: listProducts
       tags: [products]
       summary: List products (with personalized pricing if customer is logged in)
+      parameters:
+        - name: wholesalerId
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: OK
@@ -326,6 +332,11 @@ paths:
           schema:
             type: string
             enum: [7d, 30d, 90d, all]
+        - name: wholesalerId
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: OK
@@ -784,6 +795,21 @@ components:
           type: string
       required: [username, password]
 
+    LinkedWholesaler:
+      type: object
+      properties:
+        id:
+          type: integer
+        shopName:
+          type: string
+          nullable: true
+        uniqueVendorId:
+          type: string
+          nullable: true
+        name:
+          type: string
+      required: [id, name]
+
     AuthSession:
       type: object
       properties:
@@ -791,7 +817,7 @@ components:
           type: boolean
         role:
           type: string
-          enum: [admin, customer, guest]
+          enum: [admin, wholesaler, retailer, customer, guest]
         userId:
           type: integer
           nullable: true
@@ -801,6 +827,16 @@ components:
         shopName:
           type: string
           nullable: true
+        uniqueVendorId:
+          type: string
+          nullable: true
+        wholesalerShopName:
+          type: string
+          nullable: true
+        linkedWholesalers:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinkedWholesaler'
       required: [authenticated, role]
 
     Product:
@@ -1015,6 +1051,9 @@ components:
           type: integer
         customerId:
           type: integer
+        vendorId:
+          type: integer
+          nullable: true
         customerName:
           type: string
         shopName:
@@ -1042,11 +1081,21 @@ components:
           type: string
         createdAt:
           type: string
+        sellerShopName:
+          type: string
+        sellerName:
+          type: string
+        sellerPhone:
+          type: string
+        sellerAddress:
+          type: string
+        sellerGstin:
+          type: string
         items:
           type: array
           items:
             $ref: "#/components/schemas/OrderItem"
-      required: [id, customerId, customerName, shopName, status, billingType, sequenceNumber, cgst, sgst, totalAmount, paidAmount, paymentStatus, phone, createdAt, items]
+      required: [id, customerId, customerName, shopName, status, billingType, sequenceNumber, cgst, sgst, totalAmount, paidAmount, paymentStatus, phone, createdAt, sellerShopName, sellerName, sellerPhone, sellerAddress, sellerGstin, items]
 
     OrderSummary:
       type: object
@@ -1095,6 +1144,9 @@ components:
       properties:
         notes:
           type: string
+          nullable: true
+        wholesalerId:
+          type: integer
           nullable: true
         items:
           type: array

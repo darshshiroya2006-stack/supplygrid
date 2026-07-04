@@ -44,9 +44,12 @@ export default function CustomerOrders() {
 
   const filteredOrders = useMemo(() => {
     return customerOrders.filter(order => {
+      const displayId = order.billingType === "with_gst" ? `GST-#${order.sequenceNumber}` : `#${order.sequenceNumber}`;
       const matchesSearch =
         !search ||
         order.id.toString().includes(search) ||
+        (order.sequenceNumber && order.sequenceNumber.toString().includes(search)) ||
+        displayId.toLowerCase().includes(search.toLowerCase()) ||
         order.shopName.toLowerCase().includes(search.toLowerCase());
 
       let matchesDate = true;
@@ -206,13 +209,17 @@ export default function CustomerOrders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.map((order) => (
+                {filteredOrders.map((order, index) => {
+                  const displaySeq = filteredOrders.length - index;
+                  return (
                   <TableRow
                     key={order.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => setLocation(`/admin/orders/${order.id}`)}
                   >
-                    <TableCell className="font-mono text-sm font-medium">#{order.id}</TableCell>
+                    <TableCell className="font-mono text-sm font-medium">
+                      {order.billingType === "with_gst" ? `GST-#${displaySeq}` : `#${displaySeq}`}
+                    </TableCell>
                     <TableCell>
                       <div className="text-sm text-muted-foreground">
                         {isValid(parseISO(order.createdAt))
@@ -240,7 +247,8 @@ export default function CustomerOrders() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {filteredOrders.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">

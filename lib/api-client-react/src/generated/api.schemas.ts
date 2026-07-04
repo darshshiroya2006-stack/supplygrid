@@ -22,11 +22,20 @@ export interface LoginBody {
   password: string;
 }
 
+export interface LinkedWholesaler {
+  id: number;
+  shopName?: string | null;
+  uniqueVendorId?: string | null;
+  name: string;
+}
+
 export type AuthSessionRole =
   (typeof AuthSessionRole)[keyof typeof AuthSessionRole];
 
 export const AuthSessionRole = {
   admin: "admin",
+  wholesaler: "wholesaler",
+  retailer: "retailer",
   customer: "customer",
   guest: "guest",
 } as const;
@@ -37,6 +46,9 @@ export interface AuthSession {
   userId?: number | null;
   name?: string | null;
   shopName?: string | null;
+  uniqueVendorId?: string | null;
+  wholesalerShopName?: string | null;
+  linkedWholesalers?: LinkedWholesaler[];
 }
 
 export interface Product {
@@ -136,6 +148,7 @@ export interface OrderItem {
 export interface Order {
   id: number;
   customerId: number;
+  vendorId?: number | null;
   customerName: string;
   shopName: string;
   status: string;
@@ -149,6 +162,11 @@ export interface Order {
   notes?: string | null;
   phone: string;
   createdAt: string;
+  sellerShopName: string;
+  sellerName: string;
+  sellerPhone: string;
+  sellerAddress: string;
+  sellerGstin: string;
   items: OrderItem[];
 }
 
@@ -176,6 +194,7 @@ export interface CreateOrderItemBody {
 
 export interface CreateOrderBody {
   notes?: string | null;
+  wholesalerId?: number | null;
   items: CreateOrderItemBody[];
 }
 
@@ -338,8 +357,13 @@ export interface ConvertGstResponse {
   message: string;
 }
 
+export type ListProductsParams = {
+  wholesalerId?: number;
+};
+
 export type ListOrdersParams = {
   range?: ListOrdersRange;
+  wholesalerId?: number;
 };
 
 export type ListOrdersRange =

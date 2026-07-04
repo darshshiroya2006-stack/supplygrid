@@ -20,6 +20,7 @@ export const ordersTable = pgTable("orders", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   isPrinted: boolean("is_printed").default(false).notNull(),
   vendorId: integer("vendor_id").references(() => adminsTable.id),
+  vendorOrderIndex: integer("vendor_order_index"),
 });
 
 export const orderItemsTable = pgTable("order_items", {

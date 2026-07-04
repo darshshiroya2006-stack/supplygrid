@@ -51,14 +51,16 @@ export default function AdminOrders() {
   });
   const [, setLocation] = useLocation();
 
-  const getOrderDisplayId = (order: OrderSummary | undefined | null) => {
+  const getOrderDisplayId = (order: OrderSummary | undefined | null, seqNum?: number) => {
     if (!order) return "";
-    return order.billingType === "with_gst" ? `GST-#${order.sequenceNumber}` : `#${order.sequenceNumber}`;
+    const seq = seqNum !== undefined ? seqNum : (order.sequenceNumber || order.id);
+    return order.billingType === "with_gst" ? `GST-#${seq}` : `#${seq}`;
   };
 
   const [paymentOrder, setPaymentOrder] = useState<OrderSummary | null>(null);
   const [paymentInput, setPaymentInput] = useState("");
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
+  const [gstConfirmOrderId, setGstConfirmOrderId] = useState<number | null>(null);
 
   // Dynamic calendar dropdown parameters
   const now = new Date();
@@ -138,9 +140,17 @@ export default function AdminOrders() {
 
   const handleConvertToGst = (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to convert Order #${id} to a GST bill? This will calculate 5% GST (2.5% CGST and 2.5% SGST) and update the total.`)) {
-      convertGst.mutate({ id });
-    }
+    setGstConfirmOrderId(id);
+  };
+
+  const handleConfirmGstConvert = () => {
+    if (gstConfirmOrderId === null) return;
+    convertGst.mutate(
+      { id: gstConfirmOrderId },
+      {
+        onSettled: () => setGstConfirmOrderId(null),
+      }
+    );
   };
 
   const openPaymentModal = (e: React.MouseEvent, order: OrderSummary) => {
@@ -358,9 +368,10 @@ export default function AdminOrders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders?.map((order) => {
+                {filteredOrders?.map((order, index) => {
                   const isUnprocessed = order.status === "unprocessed";
                   const isUnprinted = order.isPrinted === false;
+                  const displaySeq = (filteredOrders?.length ?? 0) - index;
                   return (
                     <TableRow 
                       key={order.id} 
@@ -371,7 +382,7 @@ export default function AdminOrders() {
                       }`}
                       onClick={() => setLocation(`/admin/orders/${order.id}`)}
                     >
-                      <TableCell className="font-mono text-sm font-medium">{getOrderDisplayId(order)}</TableCell>
+                      <TableCell className="font-mono text-sm font-medium">{getOrderDisplayId(order, displaySeq)}</TableCell>
                       <TableCell>
                         <div className="flex items-center text-muted-foreground text-sm">
                           <Calendar className="w-3 h-3 mr-2" />
@@ -511,6 +522,28 @@ export default function AdminOrders() {
             >
               {deleteOrder.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={gstConfirmOrderId !== null} onOpenChange={(open) => { if (!open) setGstConfirmOrderId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add to GST Bill?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to convert Order {getOrderDisplayId(orders?.find(o => o.id === gstConfirmOrderId))} to a GST bill? This will apply 5% GST (2.5% CGST + 2.5% SGST) and permanently update the order total. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmGstConvert}
+              className="cursor-pointer"
+              disabled={convertGst.isPending}
+            >
+              {convertGst.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

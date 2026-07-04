@@ -10,9 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { useWholesalerStore } from "@/hooks/use-wholesaler";
 
 export default function ShopCart() {
   const { items, removeItem, updateQuantity, getCartTotal, clearCart } = useCart();
+  const { selectedWholesalerId } = useWholesalerStore();
   const total = getCartTotal();
   const createOrder = useCreateOrder();
   const [, setLocation] = useLocation();
@@ -28,7 +30,14 @@ export default function ShopCart() {
     }));
 
     createOrder.mutate(
-      { data: { items: orderItems, notes: notes || null } },
+      {
+        data: {
+          items: orderItems,
+          notes: notes || null,
+          wholesalerId: selectedWholesalerId || undefined,
+          wholesaler_id: selectedWholesalerId || undefined,
+        } as any
+      },
       {
         onSuccess: (order) => {
           toast.success("Order placed successfully!");

@@ -8,6 +8,7 @@ import {
   customersTable,
   customerPricingTable,
   stockEntriesTable,
+  adminsTable,
 } from "@workspace/db";
 import { CreateOrderBody } from "@workspace/api-zod";
 import { requireAdmin, requireAuth, requireCustomer } from "../lib/session";
@@ -35,22 +36,32 @@ function rangeStart(range: string | undefined): Date | null {
   }
 }
 
-async function getNextSequenceNumber(billingType: string): Promise<number> {
-  const existingSeqs = await db
-    .select({ seq: ordersTable.sequenceNumber })
+/**
+ * Computes the next per-vendor, per-billingType sequence number using
+ * an exclusive row-lock on the wholesaler row to prevent race conditions.
+ * Must be called inside a db.transaction() block.
+ */
+async function getNextVendorSequenceNumber(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  vendorId: number,
+  billingType: string
+): Promise<number> {
+  // Lock the vendor admin row to serialize concurrent order creation for the same vendor
+  await tx.execute(
+    sql`SELECT id FROM admins WHERE id = ${vendorId} FOR UPDATE`
+  );
+
+  const [result] = await tx
+    .select({ maxSeq: sql<number>`COALESCE(MAX(${ordersTable.sequenceNumber}), 0)` })
     .from(ordersTable)
-    .where(eq(ordersTable.billingType, billingType))
-    .orderBy(ordersTable.sequenceNumber);
-  const seqs = existingSeqs.map((o) => o.seq).filter((s): s is number => s !== null);
-  let nextSeq = 1;
-  for (const seq of seqs) {
-    if (seq === nextSeq) {
-      nextSeq++;
-    } else if (seq > nextSeq) {
-      break;
-    }
-  }
-  return nextSeq;
+    .where(
+      and(
+        eq(ordersTable.vendorId, vendorId),
+        eq(ordersTable.billingType, billingType)
+      )
+    );
+
+  return (result?.maxSeq ?? 0) + 1;
 }
 
 function getFilterBounds(yearStr?: string, monthStr?: string, dayStr?: string) {
@@ -81,6 +92,7 @@ function getFilterBounds(yearStr?: string, monthStr?: string, dayStr?: string) {
   return { startISO, endISO };
 }
 
+// ─── GET /orders — list orders scoped to logged-in user ──────────────────────
 router.get("/", requireAuth, async (req, res) => {
   const range = typeof req.query.range === "string" ? req.query.range : undefined;
   const since = rangeStart(range);
@@ -92,11 +104,22 @@ router.get("/", requireAuth, async (req, res) => {
   if (req.session.role === "wholesaler") {
     conds.push(eq(ordersTable.vendorId, req.session.userId!));
   } else if (req.session.role === "retailer" || req.session.role === "customer") {
-    if (req.session.userId) {
-      conds.push(eq(ordersTable.customerId, req.session.userId));
+    if (!req.session.userId) {
+      res.status(401).json({ message: "Unauthorized: Missing session user ID" });
+      return;
     }
+    conds.push(eq(ordersTable.customerId, req.session.userId));
+    const qWholesalerId = Number(req.query.wholesalerId || req.query.wholesaler_id);
+    if (qWholesalerId && Number.isInteger(qWholesalerId)) {
+      conds.push(eq(ordersTable.vendorId, qWholesalerId));
+    }
+  } else if (req.session.role === "admin") {
+    // Admin can see all orders
+  } else {
+    res.status(403).json({ message: "Forbidden" });
+    return;
   }
-  
+
   if (year) {
     const { startISO, endISO } = getFilterBounds(year, month, day);
     conds.push(sql`${ordersTable.createdAt}::date >= ${startISO}::date`);
@@ -104,6 +127,18 @@ router.get("/", requireAuth, async (req, res) => {
   } else if (since) {
     conds.push(gte(ordersTable.createdAt, since));
   }
+
+  const isCustomer = req.session.role === "customer" || req.session.role === "retailer";
+  const seqField = isCustomer
+    ? sql<number>`(
+        SELECT COUNT(*)::int
+        FROM orders o2
+        WHERE o2.customer_id = ${ordersTable.customerId}
+          AND o2.vendor_id = ${ordersTable.vendorId}
+          AND o2.billing_type = ${ordersTable.billingType}
+          AND (o2.created_at < ${ordersTable.createdAt} OR (o2.created_at = ${ordersTable.createdAt} AND o2.id <= ${ordersTable.id}))
+      )`
+    : ordersTable.sequenceNumber;
 
   const baseQuery = db
     .select({
@@ -114,7 +149,7 @@ router.get("/", requireAuth, async (req, res) => {
       paidAmount: ordersTable.paidAmount,
       paymentStatus: ordersTable.paymentStatus,
       billingType: ordersTable.billingType,
-      sequenceNumber: ordersTable.sequenceNumber,
+      sequenceNumber: seqField,
       cgst: ordersTable.cgst,
       sgst: ordersTable.sgst,
       status: ordersTable.status,
@@ -161,6 +196,7 @@ router.get("/", requireAuth, async (req, res) => {
   );
 });
 
+// ─── POST /orders — create a new order ───────────────────────────────────────
 router.post("/", requireCustomer, async (req, res) => {
   const parsed = CreateOrderBody.safeParse(req.body);
   if (!parsed.success) {
@@ -173,119 +209,135 @@ router.post("/", requireCustomer, async (req, res) => {
     res.status(400).json({ message: "Order must have at least one item" });
     return;
   }
-  const productIds = body.items.map((i) => i.productId);
-  const products = await db
-    .select()
-    .from(productsTable)
-    .where(inArray(productsTable.id, productIds));
-  const productMap = new Map(products.map((p) => [p.id, p]));
-  const pricing = await db
-    .select()
-    .from(customerPricingTable)
-    .where(
-      and(
-        eq(customerPricingTable.customerId, customerId),
-        inArray(customerPricingTable.productId, productIds),
-      ),
-    );
-  const priceMap = new Map(pricing.map((p) => [p.productId, p.customPrice]));
 
-  let total = 0;
-  const lines: Array<{
-    productId: number;
-    productName: string;
-    unit: string;
-    quantity: string;
-    unitPrice: string;
-    lineTotal: string;
-  }> = [];
-  for (const item of body.items) {
-    const p = productMap.get(item.productId);
-    if (!p) {
-      res.status(400).json({ message: `Product ${item.productId} not found` });
-      return;
-    }
-    const unitPrice = priceMap.has(p.id) ? Number(priceMap.get(p.id)) : Number(p.basePrice);
-    const lineTotal = unitPrice * item.quantity;
-    total += lineTotal;
-    lines.push({
-      productId: p.id,
-      productName: p.name,
-      unit: p.unit,
-      quantity: String(item.quantity),
-      unitPrice: String(unitPrice),
-      lineTotal: String(lineTotal),
+  try {
+    const newOrder = await db.transaction(async (tx) => {
+      // Fetch customer and determine vendor context
+      const [customer] = await tx
+        .select({ alwaysGst: customersTable.alwaysGst, vendorId: customersTable.vendorId })
+        .from(customersTable)
+        .where(eq(customersTable.id, customerId))
+        .limit(1);
+
+      const incomingWholesalerId =
+        req.body.wholesaler_id || (body as any).wholesalerId || req.body.wholesalerId;
+      const finalWholesalerId =
+        incomingWholesalerId != null
+          ? Number(incomingWholesalerId)
+          : (customer?.vendorId ?? null);
+
+      if (!finalWholesalerId) {
+        throw new Error("No wholesaler context found for this order");
+      }
+
+      const productIds = body.items.map((i) => i.productId);
+
+      // Verify all products belong to the target wholesaler
+      const products = await tx
+        .select()
+        .from(productsTable)
+        .where(
+          and(
+            inArray(productsTable.id, productIds),
+            eq(productsTable.vendorId, finalWholesalerId)
+          )
+        );
+
+      if (products.length !== productIds.length) {
+        throw new Error("One or more products do not belong to the selected wholesaler");
+      }
+
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      // Fetch custom pricing scoped to this customer + this vendor's products only
+      const pricing = await tx
+        .select()
+        .from(customerPricingTable)
+        .where(
+          and(
+            eq(customerPricingTable.customerId, customerId),
+            inArray(customerPricingTable.productId, productIds),
+          ),
+        );
+      const priceMap = new Map(pricing.map((p) => [p.productId, p.customPrice]));
+
+      let total = 0;
+      const lines: Array<{
+        productId: number;
+        productName: string;
+        unit: string;
+        quantity: string;
+        unitPrice: string;
+        lineTotal: string;
+      }> = [];
+
+      for (const item of body.items) {
+        const p = productMap.get(item.productId);
+        if (!p) {
+          throw new Error(`Product ${item.productId} not found or not owned by this wholesaler`);
+        }
+        const unitPrice = priceMap.has(p.id) ? Number(priceMap.get(p.id)) : Number(p.basePrice);
+        const lineTotal = unitPrice * item.quantity;
+        total += lineTotal;
+        lines.push({
+          productId: p.id,
+          productName: p.name,
+          unit: p.unit,
+          quantity: String(item.quantity),
+          unitPrice: String(unitPrice),
+          lineTotal: String(lineTotal),
+        });
+      }
+
+      const alwaysGst = customer?.alwaysGst ?? false;
+      const billingType = alwaysGst ? "with_gst" : "without_gst";
+
+      let cgstVal = 0;
+      let sgstVal = 0;
+      let finalTotal = total;
+      if (billingType === "with_gst") {
+        cgstVal = total * 0.025;
+        sgstVal = total * 0.025;
+        finalTotal = total + cgstVal + sgstVal;
+      }
+
+      // Concurrency-safe per-vendor sequential order number using row lock
+      const nextSeq = await getNextVendorSequenceNumber(tx, finalWholesalerId, billingType);
+
+      const [order] = await tx
+        .insert(ordersTable)
+        .values({
+          customerId,
+          status: "unprocessed",
+          billingType,
+          sequenceNumber: nextSeq,
+          cgst: String(cgstVal),
+          sgst: String(sgstVal),
+          totalAmount: String(finalTotal),
+          paidAmount: "0",
+          paymentStatus: "pending",
+          notes: body.notes ?? null,
+          vendorId: finalWholesalerId,
+        })
+        .returning();
+
+      await tx.insert(orderItemsTable).values(lines.map((l) => ({ ...l, orderId: order.id })));
+
+      return order;
     });
+
+    res.status(201).json(await loadFullOrder(newOrder.id, true));
+  } catch (error: any) {
+    console.error("Failed to create order:", error);
+    res.status(500).json({ message: error.message || "Failed to create order" });
   }
-
-  // Fetch customer alwaysGst preference and connected Wholesaler ID
-  const [customer] = await db
-    .select({ alwaysGst: customersTable.alwaysGst, vendorId: customersTable.vendorId })
-    .from(customersTable)
-    .where(eq(customersTable.id, customerId))
-    .limit(1);
-  const alwaysGst = customer?.alwaysGst ?? false;
-  const vendorId = customer?.vendorId ?? null;
-  const billingType = alwaysGst ? "with_gst" : "without_gst";
-
-  let cgstVal = 0;
-  let sgstVal = 0;
-  let finalTotal = total;
-  if (billingType === "with_gst") {
-    cgstVal = total * 0.025;
-    sgstVal = total * 0.025;
-    finalTotal = total + cgstVal + sgstVal;
-  }
-
-  // Find minimum available unused ID (gap-filling logic)
-  const existingOrders = await db
-    .select({ id: ordersTable.id })
-    .from(ordersTable)
-    .orderBy(ordersTable.id);
-  const existingIds = existingOrders.map((o) => o.id);
-  let nextId = 1;
-  for (const id of existingIds) {
-    if (id === nextId) {
-      nextId++;
-    } else if (id > nextId) {
-      break;
-    }
-  }
-
-  const nextSeq = await getNextSequenceNumber(billingType);
-
-  const [order] = await db
-    .insert(ordersTable)
-    .values({
-      id: nextId,
-      customerId,
-      status: "unprocessed",
-      billingType,
-      sequenceNumber: nextSeq,
-      cgst: String(cgstVal),
-      sgst: String(sgstVal),
-      totalAmount: String(finalTotal),
-      paidAmount: "0",
-      paymentStatus: "pending",
-      notes: body.notes ?? null,
-      vendorId: vendorId,
-    })
-    .returning();
-
-  // Sync PostgreSQL serial sequence generator
-  await db.execute(
-    sql`SELECT setval(pg_get_serial_sequence('orders', 'id'), coalesce(max(id), 1)) FROM orders;`
-  );
-
-  await db.insert(orderItemsTable).values(lines.map((l) => ({ ...l, orderId: order.id })));
-
-  res.status(201).json(await loadFullOrder(order.id));
 });
 
 const RecordPaymentBody = z.object({
   paidAmount: z.number().min(0),
 });
 
+// ─── PATCH /orders/:id/payment ───────────────────────────────────────────────
 router.patch("/:id/payment", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const parsed = RecordPaymentBody.safeParse(req.body);
@@ -294,9 +346,19 @@ router.patch("/:id/payment", requireAdmin, async (req, res) => {
     return;
   }
 
-  const [existing] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+  const vendorCond =
+    req.session.role === "wholesaler"
+      ? eq(ordersTable.vendorId, req.session.userId!)
+      : sql`1=1`;
+
+  const [existing] = await db
+    .select()
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, id), vendorCond))
+    .limit(1);
+
   if (!existing) {
-    res.status(404).json({ message: "Not found" });
+    res.status(404).json({ message: "Order not found" });
     return;
   }
 
@@ -307,7 +369,7 @@ router.patch("/:id/payment", requireAdmin, async (req, res) => {
   const [updated] = await db
     .update(ordersTable)
     .set({ paidAmount: String(paidAmount), paymentStatus })
-    .where(eq(ordersTable.id, id))
+    .where(and(eq(ordersTable.id, id), vendorCond))
     .returning();
 
   const shopName = await db
@@ -338,46 +400,45 @@ router.patch("/:id/payment", requireAdmin, async (req, res) => {
   });
 });
 
+// ─── PATCH /orders/:id/print ─────────────────────────────────────────────────
 router.patch("/:id/print", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  
+
   try {
     const updated = await db.transaction(async (tx) => {
+      const vendorCond =
+        req.session.role === "wholesaler"
+          ? eq(ordersTable.vendorId, req.session.userId!)
+          : sql`1=1`;
+
       const [existing] = await tx
         .select()
         .from(ordersTable)
-        .where(eq(ordersTable.id, id))
+        .where(and(eq(ordersTable.id, id), vendorCond))
         .limit(1);
 
       if (!existing) {
         return null;
       }
 
-      // a) Update targeted order row: Set isPrinted = true and status = 'processed'
       const [updatedOrder] = await tx
         .update(ordersTable)
         .set({ isPrinted: true, status: "processed" })
-        .where(eq(ordersTable.id, id))
+        .where(and(eq(ordersTable.id, id), vendorCond))
         .returning();
 
-      // b) Check existing stock entries for this order
       const existingStockEntries = await tx
         .select({ id: stockEntriesTable.id })
         .from(stockEntriesTable)
         .where(eq(stockEntriesTable.orderId, id))
         .limit(1);
 
-      // Deduct inventory if:
-      //  - order was not yet processed (normal first-print path), OR
-      //  - order is already processed but has no stock entries (recovery path for resequence data loss)
       if (existing.status !== "processed" || existingStockEntries.length === 0) {
-        // c) Fetch all line items for this order
         const items = await tx
           .select()
           .from(orderItemsTable)
           .where(eq(orderItemsTable.orderId, id));
 
-        // d) For each product, execute inventory deduction
         for (const item of items) {
           await tx.insert(stockEntriesTable).values({
             date: new Date().toISOString().split("T")[0],
@@ -390,6 +451,7 @@ router.patch("/:id/print", requireAdmin, async (req, res) => {
             notes: `Order #${updatedOrder.sequenceNumber ?? updatedOrder.id} fulfillment`,
             productId: item.productId,
             orderId: id,
+            vendorId: existing.vendorId,
           });
         }
       }
@@ -398,10 +460,10 @@ router.patch("/:id/print", requireAdmin, async (req, res) => {
     });
 
     if (!updated) {
-      res.status(404).json({ message: "Not found" });
+      res.status(404).json({ message: "Order not found" });
       return;
     }
-    
+
     res.json({ success: true, isPrinted: updated.isPrinted });
   } catch (error: any) {
     console.error("Failed to process order print/save PDF:", error);
@@ -409,16 +471,49 @@ router.patch("/:id/print", requireAdmin, async (req, res) => {
   }
 });
 
-async function loadFullOrder(id: number) {
+// ─── loadFullOrder helper ─────────────────────────────────────────────────────
+async function loadFullOrder(id: number, isCustomer?: boolean) {
+  const seqField = isCustomer
+    ? sql<number>`(
+        SELECT COUNT(*)::int
+        FROM orders o2
+        WHERE o2.customer_id = ${ordersTable.customerId}
+          AND o2.vendor_id = ${ordersTable.vendorId}
+          AND o2.billing_type = ${ordersTable.billingType}
+          AND (o2.created_at < ${ordersTable.createdAt} OR (o2.created_at = ${ordersTable.createdAt} AND o2.id <= ${ordersTable.id}))
+      )`
+    : ordersTable.sequenceNumber;
+
   const [row] = await db
     .select({
-      order: ordersTable,
+      order: {
+        id: ordersTable.id,
+        customerId: ordersTable.customerId,
+        vendorId: ordersTable.vendorId,
+        status: ordersTable.status,
+        billingType: ordersTable.billingType,
+        sequenceNumber: seqField,
+        cgst: ordersTable.cgst,
+        sgst: ordersTable.sgst,
+        totalAmount: ordersTable.totalAmount,
+        paidAmount: ordersTable.paidAmount,
+        paymentStatus: ordersTable.paymentStatus,
+        notes: ordersTable.notes,
+        createdAt: ordersTable.createdAt,
+      },
       shopName: customersTable.shopName,
       ownerName: customersTable.ownerName,
       phone: customersTable.phone,
+      // Wholesaler (seller) info
+      sellerShopName: adminsTable.shopName,
+      sellerName: adminsTable.name,
+      sellerPhone: adminsTable.phone,
+      sellerAddress: adminsTable.address,
+      sellerGstin: adminsTable.gstin,
     })
     .from(ordersTable)
     .leftJoin(customersTable, eq(customersTable.id, ordersTable.customerId))
+    .leftJoin(adminsTable, eq(adminsTable.id, ordersTable.vendorId))
     .where(eq(ordersTable.id, id))
     .limit(1);
   if (!row) return null;
@@ -430,9 +525,16 @@ async function loadFullOrder(id: number) {
   return {
     id: row.order.id,
     customerId: row.order.customerId,
+    vendorId: row.order.vendorId,
     customerName: row.ownerName ?? row.shopName ?? "",
     shopName: row.shopName ?? "",
     phone: row.phone ?? "",
+    // Wholesaler (seller) details for invoice header
+    sellerShopName: row.sellerShopName ?? "",
+    sellerName: row.sellerName ?? "",
+    sellerPhone: row.sellerPhone ?? "",
+    sellerAddress: row.sellerAddress ?? "",
+    sellerGstin: row.sellerGstin ?? "",
     status: row.order.status,
     billingType: row.order.billingType,
     sequenceNumber: row.order.sequenceNumber ?? 0,
@@ -455,35 +557,59 @@ async function loadFullOrder(id: number) {
   };
 }
 
+// ─── GET /orders/:id — get single order, vendor-scoped ───────────────────────
 router.get("/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
-  const order = await loadFullOrder(id);
+
+  // For wholesalers, verify ownership before loading full details
+  if (req.session.role === "wholesaler") {
+    const [orderRow] = await db
+      .select({ vendorId: ordersTable.vendorId })
+      .from(ordersTable)
+      .where(and(eq(ordersTable.id, id), eq(ordersTable.vendorId, req.session.userId!)))
+      .limit(1);
+    if (!orderRow) {
+      res.status(404).json({ message: "Order not found" });
+      return;
+    }
+  }
+
+  const isCustomer = req.session.role === "customer" || req.session.role === "retailer";
+  const order = await loadFullOrder(id, isCustomer);
   if (!order) {
     res.status(404).json({ message: "Not found" });
     return;
   }
-  if (req.session.role === "customer" && order.customerId !== req.session.userId) {
+  // Customers/retailers can only see their own orders
+  if (
+    (req.session.role === "customer" || req.session.role === "retailer") &&
+    order.customerId !== req.session.userId
+  ) {
     res.status(403).json({ message: "Forbidden" });
     return;
   }
   res.json(order);
 });
 
-
+// ─── PATCH /orders/:id — edit order items, vendor-scoped ─────────────────────
 router.patch("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const { items } = req.body; // Array of { productId, quantity, unitPrice, productName }
+  const { items } = req.body;
 
   try {
     const result = await db.transaction(async (tx) => {
+      const vendorCond =
+        req.session.role === "wholesaler"
+          ? eq(ordersTable.vendorId, req.session.userId!)
+          : sql`1=1`;
+
       const [order] = await tx
         .select()
         .from(ordersTable)
-        .where(eq(ordersTable.id, id))
+        .where(and(eq(ordersTable.id, id), vendorCond))
         .limit(1);
       if (!order) return { status: 404, message: "Order not found" };
 
-      // Delete old items
       await tx.delete(orderItemsTable).where(eq(orderItemsTable.orderId, id));
 
       let subtotal = 0;
@@ -492,8 +618,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
       for (const item of items) {
         const lineTotal = Number(item.quantity) * Number(item.unitPrice);
         subtotal += lineTotal;
-        
-        // Fetch product unit and name
+
         const [p] = await tx
           .select()
           .from(productsTable)
@@ -527,12 +652,9 @@ router.patch("/:id", requireAdmin, async (req, res) => {
       const paidAmount = Number(order.paidAmount);
       const paymentStatus = computePaymentStatus(paidAmount, finalTotal);
 
-      // If the order has been processed already, adjust stock entries!
       if (order.status === "processed") {
-        // Delete previous stock deductions for this order
         await tx.delete(stockEntriesTable).where(eq(stockEntriesTable.orderId, id));
 
-        // Insert updated stock deductions
         for (const item of newItems) {
           await tx.insert(stockEntriesTable).values({
             date: new Date().toISOString().split("T")[0],
@@ -545,6 +667,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
             notes: `Order #${order.sequenceNumber ?? order.id} fulfillment (adjusted)`,
             productId: item.productId,
             orderId: id,
+            vendorId: order.vendorId,
           });
         }
       }
@@ -557,7 +680,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
           totalAmount: String(finalTotal),
           paymentStatus,
         })
-        .where(eq(ordersTable.id, id))
+        .where(and(eq(ordersTable.id, id), vendorCond))
         .returning();
 
       return { status: 200, data: updated };
@@ -574,83 +697,126 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── DELETE /orders/:id — vendor-scoped delete + per-vendor re-sequence ──────
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   try {
     await db.transaction(async (tx) => {
-      // 1. Delete the order. Mapped stock entries and items will cascade delete.
-      await tx.delete(ordersTable).where(eq(ordersTable.id, id));
+      const vendorCond =
+        req.session.role === "wholesaler"
+          ? eq(ordersTable.vendorId, req.session.userId!)
+          : sql`1=1`;
 
-      // 2. Re-sequence "without_gst" orders based on their creation dates
-      const withoutGstOrders = await tx
-        .select({ id: ordersTable.id })
+      // Fetch the order to get vendorId before deleting
+      const [orderToDelete] = await tx
+        .select({ id: ordersTable.id, vendorId: ordersTable.vendorId })
         .from(ordersTable)
-        .where(eq(ordersTable.billingType, "without_gst"))
-        .orderBy(ordersTable.createdAt, ordersTable.id);
+        .where(and(eq(ordersTable.id, id), vendorCond))
+        .limit(1);
 
-      for (let i = 0; i < withoutGstOrders.length; i++) {
-        await tx
-          .update(ordersTable)
-          .set({ sequenceNumber: i + 1 })
-          .where(eq(ordersTable.id, withoutGstOrders[i].id));
+      if (!orderToDelete) {
+        throw new Error("Order not found or access denied");
       }
 
-      // 3. Re-sequence "with_gst" orders based on their creation dates
-      const withGstOrders = await tx
-        .select({ id: ordersTable.id })
-        .from(ordersTable)
-        .where(eq(ordersTable.billingType, "with_gst"))
-        .orderBy(ordersTable.createdAt, ordersTable.id);
+      const affectedVendorId = orderToDelete.vendorId;
 
-      for (let i = 0; i < withGstOrders.length; i++) {
-        await tx
-          .update(ordersTable)
-          .set({ sequenceNumber: i + 1 })
-          .where(eq(ordersTable.id, withGstOrders[i].id));
+      // Delete the order (stock entries and items cascade delete)
+      await tx.delete(ordersTable).where(eq(ordersTable.id, id));
+
+      if (affectedVendorId) {
+        // Re-sequence ONLY this vendor's orders per billing type — isolated from other vendors
+        for (const billingType of ["without_gst", "with_gst"]) {
+          const vendorOrders = await tx
+            .select({ id: ordersTable.id })
+            .from(ordersTable)
+            .where(
+              and(
+                eq(ordersTable.vendorId, affectedVendorId),
+                eq(ordersTable.billingType, billingType)
+              )
+            )
+            .orderBy(ordersTable.createdAt, ordersTable.id);
+
+          for (let i = 0; i < vendorOrders.length; i++) {
+            await tx
+              .update(ordersTable)
+              .set({ sequenceNumber: i + 1 })
+              .where(eq(ordersTable.id, vendorOrders[i].id));
+          }
+        }
       }
     });
 
     res.json({ ok: true });
   } catch (error: any) {
-    req.log.error({ err: error }, "Failed to delete order");
-    res.status(500).json({ message: "Failed to delete order" });
+    console.error("Failed to delete order:", error);
+    res.status(500).json({ message: error.message || "Failed to delete order" });
   }
 });
 
-
-
+// ─── PATCH /orders/:id/convert-gst — vendor-scoped GST conversion ────────────
 router.patch("/:id/convert-gst", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
-  if (!order) {
-    res.status(404).json({ message: "Order not found" });
-    return;
+
+  const vendorCond =
+    req.session.role === "wholesaler"
+      ? eq(ordersTable.vendorId, req.session.userId!)
+      : sql`1=1`;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(ordersTable)
+        .where(and(eq(ordersTable.id, id), vendorCond))
+        .limit(1);
+
+      if (!order) {
+        return { status: 404, message: "Order not found" };
+      }
+
+      if (!order.vendorId) {
+        return { status: 400, message: "Order has no vendor context" };
+      }
+
+      const items = await tx
+        .select()
+        .from(orderItemsTable)
+        .where(eq(orderItemsTable.orderId, id));
+      const total = items.reduce((sum, item) => sum + Number(item.lineTotal), 0);
+
+      const cgst = total * 0.025;
+      const sgst = total * 0.025;
+      const newTotal = total + cgst + sgst;
+      const paymentStatus = computePaymentStatus(Number(order.paidAmount), newTotal);
+
+      // Concurrency-safe next GST sequence number for this vendor only
+      const nextSeq = await getNextVendorSequenceNumber(tx, order.vendorId, "with_gst");
+
+      await tx
+        .update(ordersTable)
+        .set({
+          billingType: "with_gst",
+          sequenceNumber: nextSeq,
+          cgst: String(cgst),
+          sgst: String(sgst),
+          totalAmount: String(newTotal),
+          paymentStatus,
+        })
+        .where(and(eq(ordersTable.id, id), vendorCond));
+
+      return { status: 200 };
+    });
+
+    if (result.status !== 200) {
+      res.status(result.status).json({ message: result.message });
+      return;
+    }
+
+    res.json({ success: true, message: "Order transferred to GST bills successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to convert order to GST" });
   }
-
-  const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
-  const total = items.reduce((sum, item) => sum + Number(item.lineTotal), 0);
-  
-  const cgst = total * 0.025;
-  const sgst = total * 0.025;
-  const newTotal = total + cgst + sgst;
-  const paymentStatus = computePaymentStatus(Number(order.paidAmount), newTotal);
-
-  const nextSeq = await getNextSequenceNumber("with_gst");
-
-  const [updated] = await db
-    .update(ordersTable)
-    .set({
-      billingType: "with_gst",
-      sequenceNumber: nextSeq,
-      cgst: String(cgst),
-      sgst: String(sgst),
-      totalAmount: String(newTotal),
-      paymentStatus,
-    })
-    .where(eq(ordersTable.id, id))
-    .returning();
-
-  res.json({ success: true, message: "Order transferred to GST bills successfully" });
 });
 
 export default router;

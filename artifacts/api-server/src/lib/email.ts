@@ -48,19 +48,23 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
   return transporter;
 }
 
-export async function sendEmailOtp(email: string, otp: string): Promise<boolean> {
+export async function sendEmailOtp(email: string, otp: string, type: "wholesaler" | "retailer" = "wholesaler"): Promise<boolean> {
+  const roleLabel = type === "retailer" ? "Retailer" : "Wholesaler";
+  const bodyText = type === "retailer"
+    ? "Thank you for registering as a Retailer on the SupplyGrid B2B supply chain platform."
+    : "Thank you for registering as a Wholesaler on the SupplyGrid Wholesale B2B supply chain platform.";
   try {
     const client = await getTransporter();
     const info = await client.sendMail({
       from: '"SupplyGrid Network" <noreply@supplygrid.com>',
       to: email,
-      subject: "SupplyGrid Verification Code - OTP",
+      subject: `SupplyGrid ${roleLabel} Verification Code`,
       text: `Your 6-digit verification code is: ${otp}. This code will expire in 5 minutes.`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px; max-width: 500px;">
-          <h2 style="color: #ea580c; text-align: center;">SupplyGrid Verification Code</h2>
+          <h2 style="color: #ea580c; text-align: center;">SupplyGrid ${roleLabel} Verification</h2>
           <p>Hello,</p>
-          <p>Thank you for registering as a Wholesaler on the SupplyGrid Wholesale B2B supply chain platform.</p>
+          <p>${bodyText}</p>
           <p>Please enter the following 6-digit verification code to complete your signup process:</p>
           <div style="background-color: #f3f4f6; border-radius: 4px; padding: 15px; text-align: center; margin: 20px 0;">
             <span style="font-size: 24px; font-weight: bold; letter-spacing: 4px; font-family: monospace; color: #111827;">${otp}</span>
@@ -81,3 +85,4 @@ export async function sendEmailOtp(email: string, otp: string): Promise<boolean>
     return false;
   }
 }
+

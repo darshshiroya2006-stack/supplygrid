@@ -1,6 +1,7 @@
 import { pgTable, serial, text, numeric, date, timestamp, integer } from "drizzle-orm/pg-core";
 import { productsTable } from "./products";
 import { ordersTable } from "./orders";
+import { adminsTable } from "./users";
 
 export const stockEntriesTable = pgTable("stock_entries", {
   id: serial("id").primaryKey(),
@@ -14,7 +15,9 @@ export const stockEntriesTable = pgTable("stock_entries", {
   notes: text("notes"),
   productId: integer("product_id").references(() => productsTable.id, { onDelete: "cascade" }),
   orderId: integer("order_id").references(() => ordersTable.id, { onDelete: "cascade" }),
+  vendorId: integer("vendor_id").references(() => adminsTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
 
 export type StockEntry = typeof stockEntriesTable.$inferSelect;

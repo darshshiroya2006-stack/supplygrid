@@ -25,7 +25,8 @@ export default function ShopOrderDetails() {
   const handleWhatsApp = () => {
     if (!order) return;
     
-    let text = `*New Order: #${order.id}*\n`;
+    const displayId = order.billingType === "with_gst" ? `GST-#${order.sequenceNumber}` : `#${order.sequenceNumber}`;
+    let text = `*New Order: ${displayId}*\n`;
     text += `*Shop:* ${order.shopName}\n`;
     text += `*Date:* ${format(new Date(order.createdAt), "dd MMM yyyy")}\n\n`;
     text += `*Items:*\n`;
@@ -89,15 +90,18 @@ export default function ShopOrderDetails() {
               <div className="flex items-center gap-3 mb-4">
                 <Logo className="w-12 h-12" />
               </div>
-              <h1 className="text-2xl font-serif font-bold text-foreground">SupplyGrid Wholesale</h1>
-              <p className="text-muted-foreground mt-1 text-sm">Universal Supply Chain & Wholesalers</p>
+              <h1 className="text-2xl font-serif font-bold text-foreground">{order.sellerShopName || "Wholesaler"}</h1>
+              {order.sellerName && <p className="text-muted-foreground mt-1 text-sm">{order.sellerName}</p>}
               <div className="text-sm text-muted-foreground mt-2">
-                <p>Industrial Area, Phase 1, New Delhi</p>
-                <p>Support: +91 99999 99999</p>
+                {order.sellerAddress && <p>{order.sellerAddress}</p>}
+                {order.sellerPhone && <p>📞 +91 {order.sellerPhone}</p>}
+                {order.sellerGstin && <p>GSTIN: {order.sellerGstin}</p>}
               </div>
             </div>
             <div className="text-left md:text-right bg-muted/30 p-4 rounded-lg border w-full md:w-auto print:bg-transparent print:border-none print:p-0">
-              <h2 className="text-xl font-bold text-foreground mb-4">INVOICE #{order.id}</h2>
+              <h2 className="text-xl font-bold text-foreground mb-4">
+                INVOICE {order.billingType === "with_gst" ? `GST-#${order.sequenceNumber}` : `#${order.sequenceNumber}`}
+              </h2>
               <div className="space-y-1 text-sm">
                 <p className="text-muted-foreground mb-2">Billed To:</p>
                 <p className="font-bold text-base text-foreground">{order.shopName}</p>

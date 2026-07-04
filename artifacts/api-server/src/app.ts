@@ -28,7 +28,10 @@ app.use(
     },
   }),
 );
-app.use(cors({ origin: ["http://localhost:3005"], credentials: true }));
+const allowedOrigins = process.env["CORS_ORIGIN"]
+  ? process.env["CORS_ORIGIN"].split(",").map((o) => o.trim())
+  : ["http://localhost:3005"];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -48,7 +51,7 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: process.env["NODE_ENV"] === "production",
       maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   }),

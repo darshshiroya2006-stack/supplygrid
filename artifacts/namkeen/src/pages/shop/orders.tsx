@@ -8,10 +8,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ListOrdersRange } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
+import { useWholesalerStore } from "@/hooks/use-wholesaler";
 
 export default function ShopOrders() {
   const [range, setRange] = useState<ListOrdersRange>("30d");
-  const { data: orders, isLoading } = useListOrders({ range });
+  const { selectedWholesalerId } = useWholesalerStore();
+  const { data: orders, isLoading } = useListOrders({
+    range,
+    wholesalerId: selectedWholesalerId || undefined,
+  } as any);
   const [, setLocation] = useLocation();
 
   const renderStatusBadge = (status: string) => {
@@ -61,7 +66,9 @@ export default function ShopOrders() {
         </div>
       ) : orders && orders.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
-          {orders.map((order) => (
+          {orders.map((order, index) => {
+            const displaySeq = orders.length - index;
+            return (
             <Card 
               key={order.id} 
               className="border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
@@ -75,7 +82,9 @@ export default function ShopOrders() {
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-bold text-lg text-foreground">Order #{order.id}</h3>
+                        <h3 className="font-bold text-lg text-foreground">
+                          Order {order.billingType === "with_gst" ? `GST-#${displaySeq}` : `#${displaySeq}`}
+                        </h3>
                         {renderStatusBadge(order.status)}
                       </div>
                       <div className="flex flex-wrap items-center text-sm text-muted-foreground gap-x-4 gap-y-1">
@@ -101,7 +110,8 @@ export default function ShopOrders() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="min-h-[40vh] flex flex-col items-center justify-center text-center bg-card rounded-xl border border-dashed">

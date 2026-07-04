@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useGetDashboardSummary } from "@workspace/api-client-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useLocation, Link } from "wouter";
 import { format } from "date-fns";
@@ -212,11 +211,27 @@ export default function AdminIndex() {
     notes: "",
   });
 
-  // Existing summary query
-  const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary({
-    year: selectedYear,
-    month: String(selectedMonth),
-  } as any);
+  // Summary query — direct fetch with explicit year/month/day query params
+  // so the URL (and React Query cache key) updates instantly on every filter change.
+  // Build YYYY-MM-DD from local date parts — avoids UTC offset shifting the
+  // date backward (e.g. midnight IST = previous day in UTC via toISOString).
+  const summaryDayParam = selectedDate
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
+    : "";
+  const summaryUrl =
+    `/api/dashboard/summary` +
+    `?year=${selectedYear}` +
+    `&month=${selectedMonth}` +
+    (summaryDayParam ? `&day=${summaryDayParam}` : "");
+
+  const { data: summary, isLoading: summaryLoading } = useQuery({
+    queryKey: ["dashboard-summary", selectedYear, selectedMonth, summaryDayParam],
+    queryFn: async () => {
+      const res = await fetch(summaryUrl, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch dashboard summary");
+      return res.json();
+    },
+  });
 
   // Dynamic ranges list
   const years = Array.from({ length: currentYear - 2024 + 1 }, (_, i) => 2024 + i);
@@ -346,7 +361,7 @@ export default function AdminIndex() {
         if (!res.ok) throw new Error("Failed to update payment status");
         toast.success("Sales payment record updated successfully");
         queryClient.invalidateQueries({ queryKey: ["analytics"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
         queryClient.invalidateQueries({ queryKey: ["orders"] });
       } else {
         const res = await fetch(`/api/stock/${data.id}/payment`, {
@@ -358,7 +373,7 @@ export default function AdminIndex() {
         if (!res.ok) throw new Error("Failed to update payment status");
         toast.success("Purchases procurement payment record updated successfully");
         queryClient.invalidateQueries({ queryKey: ["analytics"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
         queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
       }
       setRecordingPayment(null);
@@ -380,7 +395,7 @@ export default function AdminIndex() {
       toast.success("Order deleted successfully");
       setConfirmDeleteOrder(null);
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     } catch (err: any) {
       toast.error(err.message || "Error deleting order");
@@ -398,7 +413,7 @@ export default function AdminIndex() {
       toast.success("Procurement entry deleted successfully");
       setConfirmDeletePurchase(null);
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
     } catch (err: any) {
       toast.error(err.message || "Error deleting purchase entry");
@@ -453,7 +468,7 @@ export default function AdminIndex() {
       toast.success("Procurement entry updated successfully");
       setEditingPurchase(null);
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
     } catch (err: any) {
       toast.error(err.message || "Error updating entry");

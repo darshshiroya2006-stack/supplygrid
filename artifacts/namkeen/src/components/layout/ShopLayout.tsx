@@ -2,10 +2,11 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetCurrentUser, useLogout, getGetCurrentUserQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShoppingCart, Package, LogOut, Menu } from "lucide-react";
+import { ShoppingCart, Package, LogOut, Menu, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { useCart } from "@/hooks/use-cart";
+import { useWholesalerStore } from "@/hooks/use-wholesaler";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
   const { data: user } = useGetCurrentUser();
   const logout = useLogout();
   const itemCount = useCart((state: { getItemCount: () => number }) => state.getItemCount());
+  const { selectedWholesaler } = useWholesalerStore();
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -42,16 +44,16 @@ export function ShopLayout({ children }: { children: ReactNode }) {
       <header className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link href="/shop">
+                      <Link href="/shop">
               <div className="cursor-pointer flex items-center gap-3">
                 <Logo className="w-8 h-8 shrink-0" />
                 <div>
                   <h1 className="text-2xl font-serif font-bold text-primary leading-tight">
-                    {user?.wholesalerShopName || "SupplyGrid"}
+                    {selectedWholesaler?.shopName || user?.wholesalerShopName || "SupplyGrid"}
                   </h1>
-                  {user?.wholesalerShopName && (
+                  {(selectedWholesaler || user?.wholesalerShopName) && (
                     <span className="text-[10px] text-muted-foreground block -mt-1 font-sans font-medium">
-                      Connected to Wholesaler: {user.wholesalerShopName}
+                      Shopping from: {selectedWholesaler?.shopName || user?.wholesalerShopName}
                     </span>
                   )}
                 </div>
@@ -73,6 +75,18 @@ export function ShopLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
+                        {/* Switch Wholesaler button — only for retailers with multiple options */}
+            {(user?.role === "retailer" || user?.role === "customer") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:flex items-center gap-1.5 text-xs border-orange-200 text-orange-600 hover:bg-orange-50"
+                onClick={() => setLocation("/retailer")}
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                Switch
+              </Button>
+            )}
             <Link href="/shop/cart">
               <Button variant="outline" className="relative">
                 <ShoppingCart className="w-4 h-4 mr-2" />

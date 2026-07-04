@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AuthSessionRole } from "./authSessionRole";
+import type { LinkedWholesaler } from "./linkedWholesaler";
 
 export interface AuthSession {
   authenticated: boolean;
@@ -13,4 +14,7 @@ export interface AuthSession {
   userId?: number | null;
   name?: string | null;
   shopName?: string | null;
+  uniqueVendorId?: string | null;
+  wholesalerShopName?: string | null;
+  linkedWholesalers?: LinkedWholesaler[];
 }

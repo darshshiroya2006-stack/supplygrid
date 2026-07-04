@@ -1,13 +1,43 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { eq, and } from "drizzle-orm";
-import { db, adminsTable, customersTable } from "@workspace/db";
+import { eq, and, or } from "drizzle-orm";
+import { db, adminsTable, customersTable, retailerWholesalersTable } from "@workspace/db";
 import { LoginBody } from "@workspace/api-zod";
-import { verifyFirebaseIdToken } from "../lib/firebaseAdmin.js";
 import { sendEmailOtp } from "../lib/email.js";
 
 const router: IRouter = Router();
 const emailOtpCache = new Map<string, { otp: string; expiresAt: number }>();
+
+// ─────────────────────────────────────────────
+// SHARED HELPERS
+// ─────────────────────────────────────────────
+
+function generateUniqueVendorId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "WH-";
+  for (let i = 0; i < 5; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+async function getRetailerLinkedWholesalers(retailerId: number) {
+  const links = await db
+    .select({
+      id: adminsTable.id,
+      shopName: adminsTable.shopName,
+      uniqueVendorId: adminsTable.uniqueVendorId,
+      name: adminsTable.name,
+    })
+    .from(retailerWholesalersTable)
+    .innerJoin(adminsTable, eq(retailerWholesalersTable.wholesalerId, adminsTable.id))
+    .where(eq(retailerWholesalersTable.retailerId, retailerId));
+  return links;
+}
+
+// ─────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────
 
 router.post("/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
@@ -17,20 +47,16 @@ router.post("/login", async (req, res) => {
   }
   const { username, password } = parsed.data;
 
-
-if (username === "admin") {
-  const [existingAdmin] = await db.select().from(adminsTable).where(eq(adminsTable.username, "admin")).limit(1);
-  if (!existingAdmin) {
-    const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync("admin", salt); 
-    await db.insert(adminsTable).values({
-      username: "admin",
-      passwordHash: hash,
-      name: "Darsh Shiroya", 
-    });
+  // Auto-seed admin
+  if (username === "admin") {
+    const [existingAdmin] = await db.select().from(adminsTable).where(eq(adminsTable.username, "admin")).limit(1);
+    if (!existingAdmin) {
+      const hash = bcrypt.hashSync("admin", 10);
+      await db.insert(adminsTable).values({ username: "admin", passwordHash: hash, name: "Darsh Shiroya" });
+    }
   }
-}
 
+  // Try wholesaler/admin table first
   const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.username, username)).limit(1);
   if (admin && bcrypt.compareSync(password, admin.passwordHash)) {
     req.session.role = admin.role as any;
@@ -45,30 +71,25 @@ if (username === "admin") {
       name: admin.name,
       shopName: admin.shopName ?? null,
       uniqueVendorId: admin.uniqueVendorId ?? null,
+      linkedWholesalers: [],
     });
     return;
   }
 
+  // Try retailer table
   const [customer] = await db
     .select()
     .from(customersTable)
     .where(eq(customersTable.username, username))
     .limit(1);
+
   if (customer && bcrypt.compareSync(password, customer.passwordHash)) {
     req.session.role = customer.role as any;
     req.session.userId = customer.id;
     req.session.name = customer.ownerName ?? customer.shopName;
     req.session.shopName = customer.shopName;
 
-    let wholesalerShopName = null;
-    if (customer.vendorId) {
-      const [w] = await db
-        .select({ shopName: adminsTable.shopName })
-        .from(adminsTable)
-        .where(eq(adminsTable.id, customer.vendorId))
-        .limit(1);
-      wholesalerShopName = w?.shopName ?? null;
-    }
+    const linkedWholesalers = await getRetailerLinkedWholesalers(customer.id);
 
     res.json({
       authenticated: true,
@@ -77,7 +98,9 @@ if (username === "admin") {
       name: customer.ownerName ?? customer.shopName,
       shopName: customer.shopName,
       uniqueVendorId: null,
-      wholesalerShopName,
+      linkedWholesalers,
+      // Legacy compat — first linked wholesaler's shop name
+      wholesalerShopName: linkedWholesalers[0]?.shopName ?? null,
     });
     return;
   }
@@ -85,34 +108,42 @@ if (username === "admin") {
   res.status(401).json({ message: "Invalid username or password" });
 });
 
+// ─────────────────────────────────────────────
+// LOGOUT
+// ─────────────────────────────────────────────
+
 router.post("/logout", (req, res) => {
   req.session.destroy(() => {
     res.json({ ok: true });
   });
 });
 
+// ─────────────────────────────────────────────
+// GET CURRENT USER (/me)
+// ─────────────────────────────────────────────
+
 router.get("/me", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (!req.session.role) {
-    res.json({ authenticated: false, role: "guest", userId: null, name: null, shopName: null, uniqueVendorId: null, wholesalerShopName: null });
+    res.json({
+      authenticated: false,
+      role: "guest",
+      userId: null,
+      name: null,
+      shopName: null,
+      uniqueVendorId: null,
+      wholesalerShopName: null,
+      linkedWholesalers: [],
+    });
     return;
   }
 
-  let wholesalerShopName = null;
+  let linkedWholesalers: Awaited<ReturnType<typeof getRetailerLinkedWholesalers>> = [];
+  let wholesalerShopName: string | null = null;
+
   if ((req.session.role === "retailer" || req.session.role === "customer") && req.session.userId) {
-    const [c] = await db
-      .select({ vendorId: customersTable.vendorId })
-      .from(customersTable)
-      .where(eq(customersTable.id, req.session.userId))
-      .limit(1);
-    if (c?.vendorId) {
-      const [w] = await db
-        .select({ shopName: adminsTable.shopName })
-        .from(adminsTable)
-        .where(eq(adminsTable.id, c.vendorId))
-        .limit(1);
-      wholesalerShopName = w?.shopName ?? null;
-    }
+    linkedWholesalers = await getRetailerLinkedWholesalers(req.session.userId);
+    wholesalerShopName = linkedWholesalers[0]?.shopName ?? null;
   }
 
   res.json({
@@ -123,44 +154,14 @@ router.get("/me", async (req, res) => {
     shopName: req.session.shopName ?? null,
     uniqueVendorId: req.session.uniqueVendorId ?? null,
     wholesalerShopName,
+    linkedWholesalers,
   });
 });
 
-// Helper to generate a unique vendor ID (e.g. WH-XXXXX)
-function generateUniqueVendorId(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "WH-";
-  for (let i = 0; i < 5; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
+// ─────────────────────────────────────────────
+// WHOLESALER SIGNUP
+// ─────────────────────────────────────────────
 
-// 1. Firebase Phone Auth Vendor validation endpoint
-router.post("/signup/send-otp", async (req, res) => {
-  const { phone, vendorId } = req.body;
-  if (!phone) {
-    res.status(400).json({ message: "Mobile number is required" });
-    return;
-  }
-
-  if (vendorId) {
-    // Validate that the wholesaler vendor ID exists
-    const [wholesaler] = await db
-      .select()
-      .from(adminsTable)
-      .where(and(eq(adminsTable.uniqueVendorId, vendorId), eq(adminsTable.role, "wholesaler")))
-      .limit(1);
-    if (!wholesaler) {
-      res.status(400).json({ message: "Invalid Vendor ID. Wholesaler not found." });
-      return;
-    }
-  }
-
-  res.json({ message: "Validation successful" });
-});
-
-// 1.5. Generate and Send Email OTP for Wholesaler Signup
 router.post("/signup/send-email-otp", async (req, res) => {
   const { email, phone } = req.body;
   if (!email || !phone) {
@@ -168,7 +169,6 @@ router.post("/signup/send-email-otp", async (req, res) => {
     return;
   }
 
-  // Check if username already exists for the email or phone
   const [existingEmail] = await db
     .select()
     .from(adminsTable)
@@ -179,15 +179,11 @@ router.post("/signup/send-email-otp", async (req, res) => {
     return;
   }
 
-  // Generate 6-digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  
-  // Set expiry in 5 minutes
   const expiresAt = Date.now() + 5 * 60 * 1000;
-  emailOtpCache.set(email.toLowerCase(), { otp, expiresAt });
+  emailOtpCache.set(`wholesaler:${email.toLowerCase()}`, { otp, expiresAt });
 
-  // Send the email OTP
-  const success = await sendEmailOtp(email, otp);
+  const success = await sendEmailOtp(email, otp, "wholesaler");
   if (!success) {
     res.status(500).json({ message: "Failed to dispatch verification email. Please try again." });
     return;
@@ -196,37 +192,29 @@ router.post("/signup/send-email-otp", async (req, res) => {
   res.json({ message: "Verification OTP sent successfully" });
 });
 
-// 2. Wholesaler Registration endpoint (Email OTP Verified)
 router.post("/signup/wholesaler", async (req, res) => {
   const { shopName, ownerName, username, phone, email, password, otp } = req.body;
-
   if (!shopName || !ownerName || !username || !phone || !email || !password || !otp) {
     res.status(400).json({ message: "All fields, including the 6-digit OTP code, are required." });
     return;
   }
 
-  // Verify the cached email OTP
-  const cached = emailOtpCache.get(email.toLowerCase());
+  const cached = emailOtpCache.get(`wholesaler:${email.toLowerCase()}`);
   if (!cached) {
-    res.status(400).json({ message: "No verification session found for this email address. Please request a new OTP." });
+    res.status(400).json({ message: "No verification session found for this email. Please request a new OTP." });
     return;
   }
-
   if (Date.now() > cached.expiresAt) {
-    emailOtpCache.delete(email.toLowerCase());
-    res.status(400).json({ message: "Verification OTP has expired. Please request a new code." });
+    emailOtpCache.delete(`wholesaler:${email.toLowerCase()}`);
+    res.status(400).json({ message: "OTP has expired. Please request a new code." });
     return;
   }
-
   if (cached.otp !== otp.trim()) {
-    res.status(400).json({ message: "Invalid 6-digit verification code. Please check your email and try again." });
+    res.status(400).json({ message: "Invalid verification code. Please check your email and try again." });
     return;
   }
+  emailOtpCache.delete(`wholesaler:${email.toLowerCase()}`);
 
-  // Remove OTP from cache on successful verification
-  emailOtpCache.delete(email.toLowerCase());
-
-  // Check if username already exists
   const [existingUser] = await db
     .select()
     .from(adminsTable)
@@ -237,111 +225,294 @@ router.post("/signup/wholesaler", async (req, res) => {
     return;
   }
 
-  // Generate unique vendor ID
   let uniqueVendorId = generateUniqueVendorId();
-  let isUnique = false;
-  while (!isUnique) {
-    const [dup] = await db
-      .select()
-      .from(adminsTable)
-      .where(eq(adminsTable.uniqueVendorId, uniqueVendorId))
-      .limit(1);
-    if (!dup) {
-      isUnique = true;
-    } else {
-      uniqueVendorId = generateUniqueVendorId();
-    }
+  while (true) {
+    const [dup] = await db.select().from(adminsTable).where(eq(adminsTable.uniqueVendorId, uniqueVendorId)).limit(1);
+    if (!dup) break;
+    uniqueVendorId = generateUniqueVendorId();
   }
 
-  const salt = bcrypt.genSaltSync(10);
-  const passwordHash = bcrypt.hashSync(password, salt);
-
+  const passwordHash = bcrypt.hashSync(password, 10);
   const [created] = await db
     .insert(adminsTable)
-    .values({
-      username,
-      passwordHash,
-      name: ownerName,
-      role: "wholesaler",
-      uniqueVendorId,
-      shopName,
-      phone,
-      email,
-    })
+    .values({ username, passwordHash, name: ownerName, role: "wholesaler", uniqueVendorId, shopName, phone, email })
     .returning();
 
-  res.status(201).json({
-    message: "Wholesaler registered successfully",
-    uniqueVendorId: created.uniqueVendorId,
-  });
+  res.status(201).json({ message: "Wholesaler registered successfully", uniqueVendorId: created.uniqueVendorId });
 });
 
-// 3. Retailer Registration endpoint (Firebase Verified)
-router.post("/signup/retailer", async (req, res) => {
-  const { phone, vendorId, password, firebaseToken, shopName, ownerName } = req.body;
+// ─────────────────────────────────────────────
+// RETAILER SIGNUP (Email OTP + UPSERT)
+// ─────────────────────────────────────────────
 
-  if (!phone || !vendorId || !password || !firebaseToken) {
-    res.status(400).json({ message: "Mobile number, Vendor ID, password, and Firebase token are required" });
+// Step 1 — validate vendor ID + send OTP to retailer email
+router.post("/signup/send-retailer-otp", async (req, res) => {
+  const { email, vendorId } = req.body;
+  if (!email || !vendorId) {
+    res.status(400).json({ message: "Email and Wholesaler Vendor ID are required" });
     return;
   }
 
-  // Verify Firebase ID Token
-  const verifiedPhone = await verifyFirebaseIdToken(firebaseToken);
-  if (!verifiedPhone) {
-    res.status(400).json({ message: "Firebase phone verification failed. Please try again." });
-    return;
-  }
+  const cleanVendorId = String(vendorId).trim().toUpperCase();
 
-  const cleanSubmittedPhone = phone.replace(/\D/g, "");
-  const cleanVerifiedPhone = verifiedPhone.replace(/\D/g, "");
-  if (!cleanVerifiedPhone.endsWith(cleanSubmittedPhone)) {
-    res.status(400).json({ message: "Verification mismatch: OTP was not verified for this mobile number." });
-    return;
-  }
-
-  // Validate Wholesaler Vendor ID exists
+  // Validate wholesaler vendor ID
   const [wholesaler] = await db
     .select()
     .from(adminsTable)
-    .where(and(eq(adminsTable.uniqueVendorId, vendorId), eq(adminsTable.role, "wholesaler")))
+    .where(and(eq(adminsTable.uniqueVendorId, cleanVendorId), eq(adminsTable.role, "wholesaler")))
     .limit(1);
   if (!wholesaler) {
-    res.status(404).json({ message: "Wholesaler with the entered Vendor ID was not found." });
+    res.status(400).json({ message: "Invalid Wholesaler Vendor ID. No wholesaler found with this ID." });
     return;
   }
 
-  // Check if username (phone) already exists in customersTable
-  const [existingCustomer] = await db
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  emailOtpCache.set(`retailer:${email.toLowerCase()}`, { otp, expiresAt });
+
+  const success = await sendEmailOtp(email, otp, "retailer");
+  if (!success) {
+    res.status(500).json({ message: "Failed to send verification email. Please try again." });
+    return;
+  }
+
+  res.json({ message: "Verification OTP sent to your email" });
+});
+
+// Step 2 — verify OTP + UPSERT customer + link to wholesaler
+router.post("/signup/retailer", async (req, res) => {
+  const { shopName, ownerName, address, username, password, phone, email, vendorId, otp } = req.body;
+
+  if (!shopName || !username || !password || !email || !vendorId || !otp) {
+    res.status(400).json({ message: "All fields including the 6-digit OTP are required." });
+    return;
+  }
+
+  // Verify OTP
+  const cached = emailOtpCache.get(`retailer:${email.toLowerCase()}`);
+  if (!cached) {
+    res.status(400).json({ message: "No active OTP session found. Please request a new code." });
+    return;
+  }
+  if (Date.now() > cached.expiresAt) {
+    emailOtpCache.delete(`retailer:${email.toLowerCase()}`);
+    res.status(400).json({ message: "OTP has expired. Please request a new code." });
+    return;
+  }
+  if (cached.otp !== otp.trim()) {
+    res.status(400).json({ message: "Invalid verification code. Please check your email and try again." });
+    return;
+  }
+  emailOtpCache.delete(`retailer:${email.toLowerCase()}`);
+
+  // Validate wholesaler
+  const cleanVendorId = String(vendorId).trim().toUpperCase();
+  const [wholesaler] = await db
+    .select()
+    .from(adminsTable)
+    .where(and(eq(adminsTable.uniqueVendorId, cleanVendorId), eq(adminsTable.role, "wholesaler")))
+    .limit(1);
+  if (!wholesaler) {
+    res.status(404).json({ message: "Wholesaler with this Vendor ID not found." });
+    return;
+  }
+
+  // Check if username is already taken by ANOTHER account
+  const [usernameTaken] = await db
     .select()
     .from(customersTable)
-    .where(eq(customersTable.username, phone))
+    .where(eq(customersTable.username, username))
     .limit(1);
-  if (existingCustomer) {
-    res.status(400).json({ message: "A retailer account already exists with this Mobile Number." });
+  if (usernameTaken && usernameTaken.email?.toLowerCase() !== email.toLowerCase() && usernameTaken.phone !== phone) {
+    res.status(400).json({ message: "This User ID is already taken. Please choose a different one." });
     return;
   }
 
-  const salt = bcrypt.genSaltSync(10);
-  const passwordHash = bcrypt.hashSync(password, salt);
+  const passwordHash = bcrypt.hashSync(password, 10);
 
-  const finalShopName = shopName || `${phone} Retailer`;
-  const finalOwnerName = ownerName || "Retailer";
+  // UPSERT: find by email OR phone
+  const [existing] = await db
+    .select()
+    .from(customersTable)
+    .where(or(eq(customersTable.email, email.toLowerCase()), ...(phone ? [eq(customersTable.phone, phone)] : [])))
+    .limit(1);
 
-  await db
-    .insert(customersTable)
-    .values({
-      shopName: finalShopName,
-      ownerName: finalOwnerName,
-      username: phone,
-      passwordHash,
-      phone,
-      role: "retailer",
-      vendorId: wholesaler.id,
-    });
+  let customerId: number;
+
+  if (existing) {
+    // Merge credentials into existing record
+    await db
+      .update(customersTable)
+      .set({
+        username,
+        passwordHash,
+        shopName,
+        ownerName: ownerName || existing.ownerName,
+        phone: phone || existing.phone,
+        address: address || existing.address,
+        email: email.toLowerCase(),
+        vendorId: existing.vendorId ?? wholesaler.id, // keep original primary vendor
+      })
+      .where(eq(customersTable.id, existing.id));
+    customerId = existing.id;
+  } else {
+    // New retailer — insert fresh record
+    const [created] = await db
+      .insert(customersTable)
+      .values({
+        shopName,
+        ownerName: ownerName || null,
+        username,
+        passwordHash,
+        phone: phone || null,
+        email: email.toLowerCase(),
+        address: address || null,
+        role: "retailer",
+        vendorId: wholesaler.id,
+      })
+      .returning();
+    customerId = created.id;
+  }
+
+  // Link to wholesaler in join table (ignore if already linked)
+  try {
+    console.log(`[Signup Retailer] Attempting to link retailer ID ${customerId} to wholesaler ID ${wholesaler.id} (shopName: ${wholesaler.shopName})`);
+    await db
+      .insert(retailerWholesalersTable)
+      .values({ retailerId: customerId, wholesalerId: wholesaler.id })
+      .onConflictDoNothing();
+    console.log(`[Signup Retailer] Link mapping query completed successfully.`);
+  } catch (error: any) {
+    console.error(`[Signup Retailer ERROR] Relation mapping query failed:`, error);
+  }
 
   res.status(201).json({
-    message: "Retailer registered successfully and linked to wholesaler: " + wholesaler.shopName,
+    message: `Account created and linked to ${wholesaler.shopName || wholesaler.name}!`,
   });
+});
+
+// ─────────────────────────────────────────────
+// RETAILER: LINK A NEW WHOLESALER
+// ─────────────────────────────────────────────
+
+router.post("/retailer/link-wholesaler", async (req, res) => {
+  if (!req.session.userId || req.session.role !== "retailer") {
+    res.status(401).json({ message: "Retailer authentication required" });
+    return;
+  }
+  const { vendorId } = req.body;
+  if (!vendorId) {
+    res.status(400).json({ message: "Wholesaler Vendor ID is required" });
+    return;
+  }
+
+  const cleanVendorId = String(vendorId).trim().toUpperCase();
+
+  const [wholesaler] = await db
+    .select()
+    .from(adminsTable)
+    .where(and(eq(adminsTable.uniqueVendorId, cleanVendorId), eq(adminsTable.role, "wholesaler")))
+    .limit(1);
+  if (!wholesaler) {
+    res.status(404).json({ message: "No wholesaler found with this Vendor ID." });
+    return;
+  }
+
+  try {
+    console.log(`[Link Wholesaler] Attempting to link retailer ID ${req.session.userId} to wholesaler ID ${wholesaler.id} (shopName: ${wholesaler.shopName})`);
+    await db
+      .insert(retailerWholesalersTable)
+      .values({ retailerId: req.session.userId, wholesalerId: wholesaler.id })
+      .onConflictDoNothing();
+    console.log(`[Link Wholesaler] Link mapping query completed successfully.`);
+  } catch (error: any) {
+    console.error(`[Link Wholesaler ERROR] Relation mapping query failed:`, error);
+  }
+
+  res.json({ message: `Linked to ${wholesaler.shopName || wholesaler.name} successfully!` });
+});
+
+// ─────────────────────────────────────────────
+// RETAILER: GET ALL LINKED WHOLESALERS
+// ─────────────────────────────────────────────
+
+router.get("/retailer/wholesalers", async (req, res) => {
+  if (!req.session.userId || req.session.role !== "retailer") {
+    res.status(401).json({ message: "Retailer authentication required" });
+    return;
+  }
+  const wholesalers = await getRetailerLinkedWholesalers(req.session.userId);
+  res.json(wholesalers);
+});
+
+// ─────────────────────────────────────────────
+// WHOLESALER PROFILE: GET + UPDATE
+// ─────────────────────────────────────────────
+
+router.get("/profile", async (req, res) => {
+  if (!req.session.userId || (req.session.role !== "admin" && req.session.role !== "wholesaler")) {
+    res.status(401).json({ message: "Wholesaler authentication required" });
+    return;
+  }
+
+  const [admin] = await db
+    .select({
+      shopName: adminsTable.shopName,
+      name: adminsTable.name,
+      phone: adminsTable.phone,
+      email: adminsTable.email,
+      address: adminsTable.address,
+      gstin: adminsTable.gstin,
+    })
+    .from(adminsTable)
+    .where(eq(adminsTable.id, req.session.userId))
+    .limit(1);
+
+  if (!admin) {
+    res.status(404).json({ message: "Profile not found" });
+    return;
+  }
+
+  res.json(admin);
+});
+
+router.patch("/profile", async (req, res) => {
+  if (!req.session.userId || (req.session.role !== "admin" && req.session.role !== "wholesaler")) {
+    res.status(401).json({ message: "Wholesaler authentication required" });
+    return;
+  }
+
+  const { shopName, phone, address, gstin } = req.body;
+
+  const updates: Record<string, string> = {};
+  if (shopName !== undefined) updates.shopName = shopName;
+  if (phone !== undefined) updates.phone = phone;
+  if (address !== undefined) updates.address = address;
+  if (gstin !== undefined) updates.gstin = gstin;
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ message: "No fields to update" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(adminsTable)
+    .set(updates)
+    .where(eq(adminsTable.id, req.session.userId))
+    .returning({
+      shopName: adminsTable.shopName,
+      name: adminsTable.name,
+      phone: adminsTable.phone,
+      email: adminsTable.email,
+      address: adminsTable.address,
+      gstin: adminsTable.gstin,
+    });
+
+  if (shopName) {
+    req.session.shopName = shopName;
+  }
+
+  res.json(updated);
 });
 
 export default router;

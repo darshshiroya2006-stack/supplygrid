@@ -9,5 +9,6 @@ import type { CreateOrderItemBody } from "./createOrderItemBody";
 
 export interface CreateOrderBody {
   notes?: string | null;
+  wholesalerId?: number | null;
   items: CreateOrderItemBody[];
 }

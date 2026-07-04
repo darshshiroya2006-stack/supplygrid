@@ -256,7 +256,7 @@ export default function Landing() {
                           <FormItem>
                             <FormLabel>Phone Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="+91 9876543210" {...field} />
+                              <Input placeholder="+91 9999999999" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

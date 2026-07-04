@@ -1,0 +1,42 @@
+services:
+  # ─── Backend API (Node.js / Express) ──────────────────────────────────────
+  - type: web
+    name: namkeen-api
+    runtime: node
+    region: singapore
+    rootDir: artifacts/api-server
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps ./dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false          # Set this in the Render dashboard → paste your Postgres URL
+      - key: SESSION_SECRET
+        generateValue: true  # Render auto-generates a secure random value
+      - key: CORS_ORIGIN
+        sync: false          # Set to your frontend Render URL e.g. https://namkeen.onrender.com
+
+  # ─── Frontend (React / Vite static site) ───────────────────────────────────
+  - type: web
+    name: namkeen-frontend
+    runtime: static
+    region: singapore
+    rootDir: artifacts/namkeen
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-spec run codegen && pnpm --filter @workspace/namkeen run build
+    staticPublishPath: dist/public
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      # All routes fall back to index.html for React Router / wouter SPA
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_ENV
+        value: production

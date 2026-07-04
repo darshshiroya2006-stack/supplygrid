@@ -8,19 +8,25 @@ const router: IRouter = Router();
 
 router.get("/", async (req, res) => {
   // Auto-sync any stock entries that have NULL productId but match a catalog product name
+  // Scoped by vendor so cross-tenant data is never mutated
   await db.execute(sql`
     UPDATE stock_entries
     SET product_id = p.id
     FROM products p
     WHERE stock_entries.product_id IS NULL
       AND lower(trim(stock_entries.product_name)) = lower(trim(p.name))
+      AND (stock_entries.vendor_id = p.vendor_id OR (stock_entries.vendor_id IS NULL AND p.vendor_id IS NULL))
   `);
 
   let vendorIdFilter: number | null = null;
   if (req.session.role === "wholesaler") {
     vendorIdFilter = req.session.userId!;
   } else if (req.session.role === "retailer" || req.session.role === "customer") {
-    if (req.session.userId) {
+    // Allow retailer to select a specific wholesaler via query param
+    const qWholesalerId = Number(req.query.wholesalerId || req.query.wholesaler_id);
+    if (qWholesalerId && Number.isInteger(qWholesalerId)) {
+      vendorIdFilter = qWholesalerId;
+    } else if (req.session.userId) {
       const [customer] = await db
         .select()
         .from(customersTable)
@@ -87,6 +93,7 @@ router.get("/", async (req, res) => {
 });
 
 async function getAvailableStock(productId: number): Promise<number> {
+
   const [row] = await db
     .select({
       totalStock: sql<string>`coalesce(sum(case when ${stockEntriesTable.orderId} is null then ${stockEntriesTable.quantityKg} else 0 end), 0) - coalesce(sum(case when ${stockEntriesTable.orderId} is not null then abs(${stockEntriesTable.quantityKg}) else 0 end), 0)`,

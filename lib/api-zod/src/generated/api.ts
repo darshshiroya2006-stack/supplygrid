@@ -61,10 +61,22 @@ export const LoginBody = zod.object({
 
 export const LoginResponse = zod.object({
   authenticated: zod.boolean(),
-  role: zod.enum(["admin", "customer", "guest"]),
+  role: zod.enum(["admin", "wholesaler", "retailer", "customer", "guest"]),
   userId: zod.number().nullish(),
   name: zod.string().nullish(),
   shopName: zod.string().nullish(),
+  uniqueVendorId: zod.string().nullish(),
+  wholesalerShopName: zod.string().nullish(),
+  linkedWholesalers: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        shopName: zod.string().nullish(),
+        uniqueVendorId: zod.string().nullish(),
+        name: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -79,15 +91,31 @@ export const LogoutResponse = zod.object({
  */
 export const GetCurrentUserResponse = zod.object({
   authenticated: zod.boolean(),
-  role: zod.enum(["admin", "customer", "guest"]),
+  role: zod.enum(["admin", "wholesaler", "retailer", "customer", "guest"]),
   userId: zod.number().nullish(),
   name: zod.string().nullish(),
   shopName: zod.string().nullish(),
+  uniqueVendorId: zod.string().nullish(),
+  wholesalerShopName: zod.string().nullish(),
+  linkedWholesalers: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        shopName: zod.string().nullish(),
+        uniqueVendorId: zod.string().nullish(),
+        name: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
  * @summary List products (with personalized pricing if customer is logged in)
  */
+export const ListProductsQueryParams = zod.object({
+  wholesalerId: zod.coerce.number().optional(),
+});
+
 export const ListProductsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -292,6 +320,7 @@ export const SetCustomerPricingResponse = zod.object({
  */
 export const ListOrdersQueryParams = zod.object({
   range: zod.enum(["7d", "30d", "90d", "all"]).optional(),
+  wholesalerId: zod.coerce.number().optional(),
 });
 
 export const ListOrdersResponseItem = zod.object({
@@ -317,6 +346,7 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem);
  */
 export const CreateOrderBody = zod.object({
   notes: zod.string().nullish(),
+  wholesalerId: zod.number().nullish(),
   items: zod.array(
     zod.object({
       productId: zod.number(),
@@ -335,6 +365,7 @@ export const GetOrderParams = zod.object({
 export const GetOrderResponse = zod.object({
   id: zod.number(),
   customerId: zod.number(),
+  vendorId: zod.number().nullish(),
   customerName: zod.string(),
   shopName: zod.string(),
   status: zod.string(),
@@ -348,6 +379,11 @@ export const GetOrderResponse = zod.object({
   notes: zod.string().nullish(),
   phone: zod.string(),
   createdAt: zod.string(),
+  sellerShopName: zod.string(),
+  sellerName: zod.string(),
+  sellerPhone: zod.string(),
+  sellerAddress: zod.string(),
+  sellerGstin: zod.string(),
   items: zod.array(
     zod.object({
       id: zod.number(),

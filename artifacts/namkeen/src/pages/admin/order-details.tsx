@@ -318,14 +318,14 @@ Thank you for your business!`;
                 <div className="flex items-center gap-3 mb-3">
                   <Logo className="w-11 h-11" />
                   <div>
-                    <h1 className="text-2xl font-serif font-bold text-gray-900 leading-tight">SupplyGrid Wholesale</h1>
-                    <p className="text-gray-500 text-xs">Universal Supply Chain & Wholesalers</p>
+                    <h1 className="text-2xl font-serif font-bold text-gray-900 leading-tight">{order.sellerShopName || "Wholesaler"}</h1>
+                    {order.sellerName && <p className="text-gray-500 text-xs">{order.sellerName}</p>}
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 space-y-0.5 ml-1 mt-4">
-                  <p>Industrial Area, Phase 1, New Delhi – 110020</p>
-                  <p>📞 +91 98765 43210 &nbsp;|&nbsp; support@supplygrid.com</p>
-                  <p>GSTIN: 07ABCDE1234F1Z5</p>
+                  {order.sellerAddress && <p>{order.sellerAddress}</p>}
+                  {order.sellerPhone && <p>📞 +91 {order.sellerPhone}</p>}
+                  {order.sellerGstin && <p>GSTIN: {order.sellerGstin}</p>}
                 </div>
               </div>
 
@@ -533,7 +533,7 @@ Thank you for your business!`;
             <div className="mt-12 pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-gray-400">
               <div className="text-center sm:text-left">
                 <p className="font-semibold text-gray-600 text-sm mb-0.5">Thank you for your business!</p>
-                <p>For queries: support@supplygrid.com &nbsp;|&nbsp; +91 98765 43210</p>
+                <p>powered by supplygrid &nbsp;|&nbsp; +91 8347783720</p>
               </div>
               <div className="text-center sm:text-right">
                 <p>This is a computer generated invoice.</p>

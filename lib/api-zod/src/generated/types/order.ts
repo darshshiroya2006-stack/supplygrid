@@ -10,6 +10,7 @@ import type { OrderItem } from "./orderItem";
 export interface Order {
   id: number;
   customerId: number;
+  vendorId?: number | null;
   customerName: string;
   shopName: string;
   status: string;
@@ -23,5 +24,10 @@ export interface Order {
   notes?: string | null;
   phone: string;
   createdAt: string;
+  sellerShopName: string;
+  sellerName: string;
+  sellerPhone: string;
+  sellerAddress: string;
+  sellerGstin: string;
   items: OrderItem[];
 }

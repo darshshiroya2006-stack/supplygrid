@@ -55,11 +55,21 @@ const UpdateSupplierBody = z.object({
   notes: z.string().optional().nullable(),
 });
 
-router.get("/suppliers", requireAdmin, async (_req, res) => {
-  const rows = await db.select().from(suppliersTable).orderBy(suppliersTable.name);
+// GET /stock/suppliers — scoped to logged-in vendor
+router.get("/suppliers", requireAdmin, async (req, res) => {
+  const vendorId = req.session.userId!;
+  const conds = req.session.role === "wholesaler"
+    ? [eq(suppliersTable.vendorId, vendorId)]
+    : [];
+
+  const rows = conds.length
+    ? await db.select().from(suppliersTable).where(and(...conds)).orderBy(suppliersTable.name)
+    : await db.select().from(suppliersTable).orderBy(suppliersTable.name);
+
   res.json(rows.map(toSupplier));
 });
 
+// POST /stock/suppliers — stamps vendorId on creation
 router.post("/suppliers", requireAdmin, async (req, res) => {
   const parsed = CreateSupplierBody.safeParse(req.body);
   if (!parsed.success) {
@@ -74,14 +84,26 @@ router.post("/suppliers", requireAdmin, async (req, res) => {
       mobile: b.mobile ?? null,
       mainProducts: b.mainProducts ?? null,
       notes: b.notes ?? null,
+      vendorId: req.session.role === "wholesaler" ? req.session.userId : null,
     })
     .returning();
   res.status(201).json(toSupplier(created));
 });
 
+// GET /stock/suppliers/:id — vendor-scoped fetch
 router.get("/suppliers/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const [s] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, id)).limit(1);
+  const vendorCond =
+    req.session.role === "wholesaler"
+      ? eq(suppliersTable.vendorId, req.session.userId!)
+      : sql`1=1`;
+
+  const [s] = await db
+    .select()
+    .from(suppliersTable)
+    .where(and(eq(suppliersTable.id, id), vendorCond))
+    .limit(1);
+
   if (!s) {
     res.status(404).json({ message: "Supplier not found" });
     return;
@@ -89,6 +111,7 @@ router.get("/suppliers/:id", requireAdmin, async (req, res) => {
   res.json(toSupplier(s));
 });
 
+// PATCH /stock/suppliers/:id — vendor-scoped update
 router.patch("/suppliers/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const parsed = UpdateSupplierBody.safeParse(req.body);
@@ -102,11 +125,18 @@ router.patch("/suppliers/:id", requireAdmin, async (req, res) => {
   if (b.mobile !== undefined) updates.mobile = b.mobile;
   if (b.mainProducts !== undefined) updates.mainProducts = b.mainProducts;
   if (b.notes !== undefined) updates.notes = b.notes;
+
+  const vendorCond =
+    req.session.role === "wholesaler"
+      ? eq(suppliersTable.vendorId, req.session.userId!)
+      : sql`1=1`;
+
   const [updated] = await db
     .update(suppliersTable)
     .set(updates)
-    .where(eq(suppliersTable.id, id))
+    .where(and(eq(suppliersTable.id, id), vendorCond))
     .returning();
+
   if (!updated) {
     res.status(404).json({ message: "Supplier not found" });
     return;
@@ -114,9 +144,15 @@ router.patch("/suppliers/:id", requireAdmin, async (req, res) => {
   res.json(toSupplier(updated));
 });
 
+// DELETE /stock/suppliers/:id — vendor-scoped delete
 router.delete("/suppliers/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  await db.delete(suppliersTable).where(eq(suppliersTable.id, id));
+  const vendorCond =
+    req.session.role === "wholesaler"
+      ? eq(suppliersTable.vendorId, req.session.userId!)
+      : sql`1=1`;
+
+  await db.delete(suppliersTable).where(and(eq(suppliersTable.id, id), vendorCond));
   res.json({ ok: true });
 });
 
@@ -153,8 +189,17 @@ function getFilterBounds(yearStr?: string, monthStr?: string, dayStr?: string) {
 
 router.get("/suppliers/:id/entries", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  // Identify supplier name from ID, then filter entries by name
-  const [supplier] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, id)).limit(1);
+  const vendorCond =
+    req.session.role === "wholesaler"
+      ? eq(suppliersTable.vendorId, req.session.userId!)
+      : sql`1=1`;
+
+  const [supplier] = await db
+    .select()
+    .from(suppliersTable)
+    .where(and(eq(suppliersTable.id, id), vendorCond))
+    .limit(1);
+
   if (!supplier) {
     res.status(404).json({ message: "Supplier not found" });
     return;
@@ -164,33 +209,96 @@ router.get("/suppliers/:id/entries", requireAdmin, async (req, res) => {
   const month = typeof req.query.month === "string" ? req.query.month : undefined;
   const day = typeof req.query.day === "string" ? req.query.day : undefined;
 
-  let query = db.select().from(stockEntriesTable).where(eq(stockEntriesTable.supplierName, supplier.name));
+  // Vendor-scoped entries for this supplier: match on vendorId directly
+  const entryCond = req.session.role === "wholesaler"
+    ? and(
+        eq(stockEntriesTable.supplierName, supplier.name),
+        eq(stockEntriesTable.vendorId, req.session.userId!)
+      )
+    : eq(stockEntriesTable.supplierName, supplier.name);
 
   const isMonthActive = month && month !== "all";
   const isDayActive = day && day !== "all";
 
+  let rows;
   if (year && (isMonthActive || isDayActive)) {
     const { startISO, endISO } = getFilterBounds(year, month, day);
-    query = db.select().from(stockEntriesTable).where(
-      and(
-        eq(stockEntriesTable.supplierName, supplier.name),
-        sql`${stockEntriesTable.date} >= ${startISO}::date`,
-        sql`${stockEntriesTable.date} <= ${endISO}::date`
+    rows = await db
+      .select({
+        id: stockEntriesTable.id,
+        date: stockEntriesTable.date,
+        supplierName: stockEntriesTable.supplierName,
+        productName: stockEntriesTable.productName,
+        quantityKg: stockEntriesTable.quantityKg,
+        totalPrice: stockEntriesTable.totalPrice,
+        amountPaidToSupplier: stockEntriesTable.amountPaidToSupplier,
+        purchasePaymentStatus: stockEntriesTable.purchasePaymentStatus,
+        notes: stockEntriesTable.notes,
+        createdAt: stockEntriesTable.createdAt,
+      })
+      .from(stockEntriesTable)
+      .where(
+        and(
+          entryCond,
+          sql`${stockEntriesTable.date} >= ${startISO}::date`,
+          sql`${stockEntriesTable.date} <= ${endISO}::date`
+        )
       )
-    );
+      .orderBy(desc(stockEntriesTable.date), desc(stockEntriesTable.id));
+  } else {
+    rows = await db
+      .select({
+        id: stockEntriesTable.id,
+        date: stockEntriesTable.date,
+        supplierName: stockEntriesTable.supplierName,
+        productName: stockEntriesTable.productName,
+        quantityKg: stockEntriesTable.quantityKg,
+        totalPrice: stockEntriesTable.totalPrice,
+        amountPaidToSupplier: stockEntriesTable.amountPaidToSupplier,
+        purchasePaymentStatus: stockEntriesTable.purchasePaymentStatus,
+        notes: stockEntriesTable.notes,
+        createdAt: stockEntriesTable.createdAt,
+      })
+      .from(stockEntriesTable)
+      .where(entryCond)
+      .orderBy(desc(stockEntriesTable.date), desc(stockEntriesTable.id));
   }
 
-  const rows = await query.orderBy(desc(stockEntriesTable.date), desc(stockEntriesTable.id));
   res.json(rows.map(toEntry));
 });
 
-// ─── Stock Entries (existing) ─────────────────────────────────────────────
+// ─── Stock Entries CRUD ──────────────────────────────────────────────────────
 
-router.get("/", requireAdmin, async (_req, res) => {
-  const rows = await db.select().from(stockEntriesTable).orderBy(desc(stockEntriesTable.date), desc(stockEntriesTable.id));
+// GET /stock/ — vendor-scoped stock entries (purchases only, not order deductions)
+router.get("/", requireAdmin, async (req, res) => {
+  const vendorCond = req.session.role === "wholesaler"
+    ? and(
+        sql`${stockEntriesTable.orderId} is null`,
+        eq(stockEntriesTable.vendorId, req.session.userId!)
+      )
+    : sql`${stockEntriesTable.orderId} is null`;
+
+  const rows = await db
+    .select({
+      id: stockEntriesTable.id,
+      date: stockEntriesTable.date,
+      supplierName: stockEntriesTable.supplierName,
+      productName: stockEntriesTable.productName,
+      quantityKg: stockEntriesTable.quantityKg,
+      totalPrice: stockEntriesTable.totalPrice,
+      amountPaidToSupplier: stockEntriesTable.amountPaidToSupplier,
+      purchasePaymentStatus: stockEntriesTable.purchasePaymentStatus,
+      notes: stockEntriesTable.notes,
+      createdAt: stockEntriesTable.createdAt,
+    })
+    .from(stockEntriesTable)
+    .where(vendorCond)
+    .orderBy(desc(stockEntriesTable.date), desc(stockEntriesTable.id));
+
   res.json(rows.map(toEntry));
 });
 
+// POST /stock/ — stamps vendorId on creation
 router.post("/", requireAdmin, async (req, res) => {
   const parsed = CreateStockEntryBody.safeParse(req.body);
   if (!parsed.success) {
@@ -198,13 +306,23 @@ router.post("/", requireAdmin, async (req, res) => {
     return;
   }
   const b = parsed.data;
+  const vendorId = req.session.role === "wholesaler" ? req.session.userId! : null;
 
-  // Resolve productId from productName case-insensitively
-  const [product] = await db
-    .select({ id: productsTable.id })
-    .from(productsTable)
-    .where(eq(sql`lower(trim(${productsTable.name}))`, b.productName.trim().toLowerCase()))
-    .limit(1);
+  // Resolve productId from productName scoped to current vendor
+  let resolvedProductId: number | null = null;
+  if (vendorId) {
+    const [product] = await db
+      .select({ id: productsTable.id })
+      .from(productsTable)
+      .where(
+        and(
+          eq(sql`lower(trim(${productsTable.name}))`, b.productName.trim().toLowerCase()),
+          eq(productsTable.vendorId, vendorId)
+        )
+      )
+      .limit(1);
+    resolvedProductId = product ? product.id : null;
+  }
 
   const [created] = await db
     .insert(stockEntriesTable)
@@ -217,12 +335,14 @@ router.post("/", requireAdmin, async (req, res) => {
       amountPaidToSupplier: "0",
       purchasePaymentStatus: "pending",
       notes: b.notes ?? null,
-      productId: product ? product.id : null,
+      productId: resolvedProductId,
+      vendorId,
     })
     .returning();
   res.status(201).json(toEntry(created));
 });
 
+// PATCH /stock/:id — vendor-scoped update
 router.patch("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const parsed = UpdateStockEntryBody.safeParse(req.body);
@@ -231,30 +351,52 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     return;
   }
   const b = parsed.data;
+
+  // Fetch existing entry with vendor context check
+  const vendorCond = req.session.role === "wholesaler"
+    ? eq(stockEntriesTable.vendorId, req.session.userId!)
+    : sql`1=1`;
+
+  const [existing] = await db
+    .select({ id: stockEntriesTable.id, productId: stockEntriesTable.productId })
+    .from(stockEntriesTable)
+    .where(and(eq(stockEntriesTable.id, id), vendorCond))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ message: "Not found or access denied" });
+    return;
+  }
+
   const updates: Record<string, unknown> = {};
   if (b.date !== undefined) updates.date = b.date;
   if (b.supplierName !== undefined) updates.supplierName = b.supplierName;
   if (b.productName !== undefined) {
     updates.productName = b.productName;
-    const [product] = await db
-      .select({ id: productsTable.id })
-      .from(productsTable)
-      .where(eq(sql`lower(trim(${productsTable.name}))`, b.productName.trim().toLowerCase()))
-      .limit(1);
-    updates.productId = product ? product.id : null;
+    if (req.session.role === "wholesaler") {
+      const [product] = await db
+        .select({ id: productsTable.id })
+        .from(productsTable)
+        .where(
+          and(
+            eq(sql`lower(trim(${productsTable.name}))`, b.productName.trim().toLowerCase()),
+            eq(productsTable.vendorId, req.session.userId!)
+          )
+        )
+        .limit(1);
+      updates.productId = product ? product.id : null;
+    }
   }
   if (b.quantityKg !== undefined) updates.quantityKg = String(b.quantityKg);
   if (b.totalPrice !== undefined) updates.totalPrice = String(b.totalPrice);
   if (b.notes !== undefined) updates.notes = b.notes;
+
   const [updated] = await db
     .update(stockEntriesTable)
     .set(updates)
-    .where(eq(stockEntriesTable.id, id))
+    .where(and(eq(stockEntriesTable.id, id), vendorCond))
     .returning();
-  if (!updated) {
-    res.status(404).json({ message: "Not found" });
-    return;
-  }
+
   res.json(toEntry(updated));
 });
 
@@ -262,6 +404,7 @@ const RecordSupplierPaymentBody = z.object({
   amountPaidToSupplier: z.number().min(0),
 });
 
+// PATCH /stock/:id/payment — vendor-scoped supplier payment recording
 router.patch("/:id/payment", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const parsed = RecordSupplierPaymentBody.safeParse(req.body);
@@ -270,9 +413,18 @@ router.patch("/:id/payment", requireAdmin, async (req, res) => {
     return;
   }
 
-  const [existing] = await db.select().from(stockEntriesTable).where(eq(stockEntriesTable.id, id)).limit(1);
+  const vendorCond = req.session.role === "wholesaler"
+    ? eq(stockEntriesTable.vendorId, req.session.userId!)
+    : sql`1=1`;
+
+  const [existing] = await db
+    .select({ id: stockEntriesTable.id, totalPrice: stockEntriesTable.totalPrice })
+    .from(stockEntriesTable)
+    .where(and(eq(stockEntriesTable.id, id), vendorCond))
+    .limit(1);
+
   if (!existing) {
-    res.status(404).json({ message: "Not found" });
+    res.status(404).json({ message: "Not found or access denied" });
     return;
   }
 
@@ -283,14 +435,31 @@ router.patch("/:id/payment", requireAdmin, async (req, res) => {
   const [updated] = await db
     .update(stockEntriesTable)
     .set({ amountPaidToSupplier: String(amountPaid), purchasePaymentStatus })
-    .where(eq(stockEntriesTable.id, id))
+    .where(and(eq(stockEntriesTable.id, id), vendorCond))
     .returning();
 
   res.json(toEntry(updated));
 });
 
+// DELETE /stock/:id — vendor-scoped delete
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
+
+  const vendorCond = req.session.role === "wholesaler"
+    ? eq(stockEntriesTable.vendorId, req.session.userId!)
+    : sql`1=1`;
+
+  const [existing] = await db
+    .select({ id: stockEntriesTable.id })
+    .from(stockEntriesTable)
+    .where(and(eq(stockEntriesTable.id, id), vendorCond))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ message: "Not found or access denied" });
+    return;
+  }
+
   await db.delete(stockEntriesTable).where(eq(stockEntriesTable.id, id));
   res.json({ ok: true });
 });

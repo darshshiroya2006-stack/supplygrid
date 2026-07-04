@@ -15,23 +15,30 @@ import { requireAdmin } from "../lib/session";
 const router: IRouter = Router();
 
 router.get("/summary", requireAdmin, async (req, res) => {
-  // Auto-sync any stock entries that have NULL productId but match a catalog product name
+  // Auto-sync stock entries with NULL productId, scoped by vendor to avoid cross-tenant mutations
   await db.execute(sql`
     UPDATE stock_entries
     SET product_id = p.id
     FROM products p
     WHERE stock_entries.product_id IS NULL
       AND lower(trim(stock_entries.product_name)) = lower(trim(p.name))
+      AND (stock_entries.vendor_id = p.vendor_id OR (stock_entries.vendor_id IS NULL AND p.vendor_id IS NULL))
   `);
 
   const now = new Date();
   const queryYear = req.query.year ? Number(req.query.year) : now.getFullYear();
   const queryMonth = req.query.month ? String(req.query.month).trim() : "all";
+  const queryDay = req.query.day ? String(req.query.day).trim() : "";
 
   let startDate: Date;
   let endDate: Date;
 
-  if (queryMonth === "all") {
+  if (queryDay) {
+    // A specific date was selected — narrow to that exact day
+    const d = new Date(queryDay);
+    startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+    endDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  } else if (queryMonth === "all") {
     startDate = new Date(queryYear, 0, 1, 0, 0, 0, 0);
     endDate = new Date(queryYear, 11, 31, 23, 59, 59, 999);
   } else {
@@ -88,9 +95,9 @@ router.get("/summary", requireAdmin, async (req, res) => {
   }
   const [{ count: lowStockProducts }] = await lowStockQuery.where(and(...lowStockConds));
 
-  // 4. Orders
+  // 4. Orders — scoped to the active filter window (year + month + day)
   let ordersQuery = db.select({ count: sql<number>`count(*)::int` }).from(ordersTable);
-  const ordersConds = [gte(ordersTable.createdAt, yearlyStart), lte(ordersTable.createdAt, yearlyEnd)];
+  const ordersConds = [gte(ordersTable.createdAt, startDate), lte(ordersTable.createdAt, endDate)];
   if (isWholesaler) {
     ordersConds.push(eq(ordersTable.vendorId, vendorId));
   }
@@ -148,11 +155,10 @@ router.get("/summary", requireAdmin, async (req, res) => {
       total: sql<number>`coalesce(sum(${stockEntriesTable.totalPrice}), 0)::float8`,
       pending: sql<number>`(coalesce(sum(${stockEntriesTable.totalPrice}), 0) - coalesce(sum(${stockEntriesTable.amountPaidToSupplier}), 0))::float8`,
     })
-    .from(stockEntriesTable)
-    .leftJoin(productsTable, eq(stockEntriesTable.productId, productsTable.id));
+    .from(stockEntriesTable);
   const yearlyPurchasesConds = [sql`${stockEntriesTable.orderId} is null`, gte(stockEntriesTable.createdAt, yearlyStart), lte(stockEntriesTable.createdAt, yearlyEnd)];
   if (isWholesaler) {
-    yearlyPurchasesConds.push(eq(productsTable.vendorId, vendorId));
+    yearlyPurchasesConds.push(eq(stockEntriesTable.vendorId, vendorId));
   }
   const [{ total: yearlyPurchasesTotal, pending: yearlyPurchasesPending }] = await yearlyPurchasesQuery.where(and(...yearlyPurchasesConds));
 
@@ -374,7 +380,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
       WHERE order_id IS NULL
         AND (created_at AT TIME ZONE 'Asia/Kolkata')::date >= ${startISO}::date
         AND (created_at AT TIME ZONE 'Asia/Kolkata')::date <= ${endISO}::date
-        ${req.session.role === 'wholesaler' ? sql`AND product_id IN (SELECT id FROM products WHERE vendor_id = ${req.session.userId})` : sql``}
+        ${req.session.role === 'wholesaler' ? sql`AND vendor_id = ${req.session.userId}` : sql``}
     `);
     const totalPurchases   = Number((purchResult.rows[0] as any).total_purchases   ?? 0);
     const totalPurchasedKg = Number((purchResult.rows[0] as any).total_purchased_kg ?? 0);
@@ -456,7 +462,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
         WHERE order_id IS NULL
           AND (created_at AT TIME ZONE 'Asia/Kolkata')::date >= ${startISO}::date
           AND (created_at AT TIME ZONE 'Asia/Kolkata')::date <= ${endISO}::date
-          ${req.session.role === 'wholesaler' ? sql`AND product_id IN (SELECT id FROM products WHERE vendor_id = ${req.session.userId})` : sql``}
+          ${req.session.role === 'wholesaler' ? sql`AND vendor_id = ${req.session.userId}` : sql``}
         GROUP BY EXTRACT(DAY FROM created_at AT TIME ZONE 'Asia/Kolkata')
         ORDER BY day_num
       `);
@@ -499,7 +505,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
         WHERE order_id IS NULL
           AND (created_at AT TIME ZONE 'Asia/Kolkata')::date >= ${startISO}::date
           AND (created_at AT TIME ZONE 'Asia/Kolkata')::date <= ${endISO}::date
-          ${req.session.role === 'wholesaler' ? sql`AND product_id IN (SELECT id FROM products WHERE vendor_id = ${req.session.userId})` : sql``}
+          ${req.session.role === 'wholesaler' ? sql`AND vendor_id = ${req.session.userId}` : sql``}
         GROUP BY EXTRACT(MONTH FROM created_at AT TIME ZONE 'Asia/Kolkata')
         ORDER BY month_num
       `);
@@ -553,7 +559,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
       WHERE order_id IS NULL
         AND (created_at AT TIME ZONE 'Asia/Kolkata')::date >= ${startISO}::date
         AND (created_at AT TIME ZONE 'Asia/Kolkata')::date <= ${endISO}::date
-        ${req.session.role === 'wholesaler' ? sql`AND product_id IN (SELECT id FROM products WHERE vendor_id = ${req.session.userId})` : sql``}
+        ${req.session.role === 'wholesaler' ? sql`AND vendor_id = ${req.session.userId}` : sql``}
       ORDER BY created_at DESC
     `);
     const periodPurchases = purchasesListResult.rows;

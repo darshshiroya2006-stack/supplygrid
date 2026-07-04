@@ -46,7 +46,8 @@ export default function Login() {
         if (session.role === 'admin' || session.role === 'wholesaler') {
           setLocation("/admin");
         } else {
-          setLocation("/shop");
+          // Retailers go to their multi-wholesaler selection dashboard
+          setLocation("/retailer");
         }
       },
       onError: (error) => {
@@ -54,6 +55,7 @@ export default function Login() {
       }
     });
   }
+
 
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">

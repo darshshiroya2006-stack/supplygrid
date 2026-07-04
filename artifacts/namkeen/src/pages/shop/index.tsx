@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCart } from "@/hooks/use-cart";
+import { useWholesalerStore } from "@/hooks/use-wholesaler";
 import { toast } from "sonner";
 
 // Import generated images
@@ -42,7 +43,10 @@ function resolveImageSrc(imageUrl: string | null | undefined, productName: strin
 }
 
 export default function ShopIndex() {
-  const { data: products, isLoading } = useListProducts();
+  const { selectedWholesalerId } = useWholesalerStore();
+  const { data: products, isLoading } = useListProducts(
+    selectedWholesalerId ? { wholesalerId: selectedWholesalerId } as any : undefined
+  );
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
   const [quantities, setQuantities] = useState<Record<number, number>>({});
