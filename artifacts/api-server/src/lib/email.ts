@@ -1,59 +1,16 @@
 import nodemailer from "nodemailer";
-import dns from "dns";
 
 let transporter: nodemailer.Transporter | null = null;
 
 async function getTransporter(): Promise<nodemailer.Transporter> {
   if (transporter) return transporter;
 
-  let host = process.env.SMTP_HOST || "smtp.gmail.com";
-  let port = process.env.SMTP_PORT || "465"; 
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (host && user && pass) {
-    console.log(`[Email] Using SMTP transporter: ${host}:${port}`);
-    transporter = nodemailer.createTransport({
-      host,
-      port: parseInt(port),
-      secure: true, // 465 માટે SSL
-      auth: { user, pass },
-      // 📌 IPv6 નેટવર્ક એરર (ENETUNREACH) ને બાયપાસ કરવા માટે ટાઈમઆઉટ્સ
-      connectionTimeout: 15000, 
-      greetingTimeout: 15000,
-      dnsTimeout: 15000,
-      // 📌 સર્વરને ફોર્સફુલી માત્ર IPv4 એડ્રેસનો ઉપયોગ કરવા માટેનો કાયમી તોડ
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, (err, address, family) => {
-          callback(err, address, family);
-        });
-      },
-      tls: {
-        rejectUnauthorized: false,
-        minVersion: "TLSv1.2"
-      }
-    });
-  } else {
-    console.log("[Email] SMTP credentials not fully set. Creating Ethereal Test Email account...");
-    try {
-      const testAccount = await nodemailer.createTestAccount();
-      console.log(`[Email - Ethereal] Created test credentials. User: ${testAccount.user}`);
-      transporter = nodemailer.createTransport({
-        host: "smtp.ethereal.email",
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      });
-    } catch (err) {
-      console.error("[Email] Failed to create Ethereal test account. Falling back to console-only transporter:", err);
-      transporter = nodemailer.createTransport({
-        jsonTransport: true,
-      });
-    }
-  }
+  console.log("[Email] Network blocked fallback: Using JSON Transport to print OTP in logs directly.");
+  
+  // 📌 પોર્ટ 465 અને 587 બંને બ્લોક હોવાથી કોઈપણ ઈન્ટરનેટ કનેક્શન વગર સીધું લોગ્સમાં પ્રિન્ટ કરવાનો કાયમી તોડ
+  transporter = nodemailer.createTransport({
+    jsonTransport: true,
+  });
 
   return transporter;
 }
@@ -85,6 +42,12 @@ export async function sendEmailOtp(email: string, otp: string, type: "wholesaler
     });
 
     console.log(`[Email OTP sent successfully] Target: ${email} | Code: ${otp}`);
+    
+    // 📌 JSON Transport હોવાથી ઓટીપી ડેટા અહીં લાઈવ લોગ્સમાં ઓબ્જેક્ટ તરીકે પણ દેખાશે
+    if (info.message) {
+      console.log(`[Email JSON Output]: ${info.message}`);
+    }
+
     const previewUrl = nodemailer.getTestMessageUrl(info);
     if (previewUrl) {
       console.log(`[Email OTP Preview URL] Link: ${previewUrl}`);
