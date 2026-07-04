@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import dns from "dns";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -15,9 +16,18 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
     transporter = nodemailer.createTransport({
       host,
       port: parseInt(port),
-      secure: true, // 465 પોર્ટ માટે SSL ઓન રહેશે
+      secure: true, // 465 માટે SSL
       auth: { user, pass },
-      // 📌 આ વધારાનું કન્ફિગરેશન ગૂગલ તરફથી આવતી 500 કનેક્શન એરરને રોકશે
+      // 📌 IPv6 નેટવર્ક એરર (ENETUNREACH) ને બાયપાસ કરવા માટે ટાઈમઆઉટ્સ
+      connectionTimeout: 15000, 
+      greetingTimeout: 15000,
+      dnsTimeout: 15000,
+      // 📌 સર્વરને ફોર્સફુલી માત્ર IPv4 એડ્રેસનો ઉપયોગ કરવા માટેનો કાયમી તોડ
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, (err, address, family) => {
+          callback(err, address, family);
+        });
+      },
       tls: {
         rejectUnauthorized: false,
         minVersion: "TLSv1.2"
