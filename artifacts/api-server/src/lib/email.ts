@@ -6,7 +6,8 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
   if (transporter) return transporter;
 
   let host = process.env.SMTP_HOST;
-  let port = process.env.SMTP_PORT || "587";
+  // અહીં આપણે ડિફોલ્ટ પોર્ટ 465 સેટ કર્યો છે જે ફ્રી સર્વર પર બ્લોક નથી થતો
+  let port = process.env.SMTP_PORT || "465"; 
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
@@ -19,7 +20,7 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
     transporter = nodemailer.createTransport({
       host,
       port: parseInt(port),
-      secure: port === "465",
+      secure: true, // આ લાઈન ગૂગલના 465 પોર્ટ માટે SSL ફરજિયાત ચાલુ કરી દેશે
       auth: { user, pass },
     });
   } else {
@@ -85,4 +86,3 @@ export async function sendEmailOtp(email: string, otp: string, type: "wholesaler
     return false;
   }
 }
-
