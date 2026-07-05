@@ -1,4 +1,4 @@
-import { useListProducts, useCreateInquiry } from "@workspace/api-client-react";
+import { useCreateInquiry } from "@workspace/api-client-react";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,42 +9,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Loader2, ArrowRight, CheckCircle2, ChevronRight } from "lucide-react";
+import { Loader2, CheckCircle2, Users, ShieldCheck, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 
-// Import generated images
+// Hero background image
 import heroImg from "@/assets/hero.png";
-import bhujiaImg from "@/assets/bhujia.png";
-import sevImg from "@/assets/sev.png";
-import chakliImg from "@/assets/chakli.png";
-import mathriImg from "@/assets/mathri.png";
-import moongDalImg from "@/assets/moong_dal.png";
-import masalaPeanutsImg from "@/assets/masala_peanuts.png";
-import alooBhujiaImg from "@/assets/aloo_bhujia.png";
-import navratanMixImg from "@/assets/navratan_mix.png";
-import khattaMeethaImg from "@/assets/khatta_meetha.png";
-import placeholderImg from "@/assets/placeholder.png";
-
-const seededProductImages: Record<string, string> = {
-  "Aloo Bhujia": alooBhujiaImg,
-  "Bikaneri Bhujia": bhujiaImg,
-  "Moong Dal Namkeen": moongDalImg,
-  "Masala Peanuts": masalaPeanutsImg,
-  "Navratan Mix": navratanMixImg,
-  "Khatta Meetha": khattaMeethaImg,
-  "Chakli": chakliImg,
-  "Mathri": mathriImg,
-  "Sev": sevImg,
-  "Cornflakes Mixture": navratanMixImg,
-};
-
-function resolveImageSrc(imageUrl: string | null | undefined, productName: string): string {
-  if (imageUrl) {
-    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-    return `/api/storage${imageUrl}`;
-  }
-  return seededProductImages[productName] || placeholderImg;
-}
 
 const inquirySchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -55,7 +24,6 @@ const inquirySchema = z.object({
 });
 
 export default function Landing() {
-  const { data: products, isLoading: productsLoading } = useListProducts();
   const createInquiry = useCreateInquiry();
 
   const form = useForm<z.infer<typeof inquirySchema>>({
@@ -87,120 +55,69 @@ export default function Landing() {
     <PublicLayout>
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-black/40 z-10"></div>
+        {/* Multi-layer glassmorphism tint for premium readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/45 backdrop-blur-[3px] z-10"></div>
         <div className="absolute inset-0 z-0">
-          <img src={heroImg} alt="SupplyGrid B2B Wholesale" className="w-full h-full object-cover" />
+          <img src={heroImg} alt="SupplyGrid B2B Wholesale Platform" className="w-full h-full object-cover" />
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 py-32 lg:py-48 flex flex-col items-start justify-center min-h-[80vh]">
-          <span className="inline-block py-1 px-3 rounded-full bg-primary/90 text-primary-foreground font-medium text-sm mb-6 backdrop-blur-sm border border-primary/20">
-            Premium Wholesale Distributer
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 py-32 lg:py-52 flex flex-col items-start justify-center min-h-[85vh]">
+          <span className="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-primary/95 text-white font-semibold text-sm mb-8 backdrop-blur-sm border border-primary/30 shadow-lg">
+            <ShieldCheck className="w-4 h-4" /> India's Verified B2B Wholesale Network
           </span>
-          <h1 className="text-5xl md:text-7xl font-serif font-bold text-white max-w-3xl leading-tight mb-6 drop-shadow-lg">
-            Authentic Taste.<br/>
-            <span className="text-secondary">Wholesale Prices.</span>
+          <h1 className="text-5xl md:text-7xl font-serif font-bold text-white max-w-4xl leading-tight mb-6 drop-shadow-2xl">
+            Multiple Wholesalers.<br/>
+            <span className="text-amber-400 font-sans">One Unified Platform.</span>
           </h1>
-          <p className="text-xl text-white/90 max-w-2xl mb-10 text-shadow leading-relaxed">
-            Partner with us to stock your retail shelves with premium wholesale inventory. Fresh, reliable, and direct from verified distributors.
+          <p className="text-xl text-white/90 max-w-2xl mb-4 leading-relaxed drop-shadow-md font-sans">
+            SupplyGrid connects verified regional wholesalers and manufacturers — spanning namkeens, groceries, agro commodities, and FMCG — with retail partners nationwide.
+          </p>
+          <p className="text-base text-white/70 max-w-xl mb-10 leading-relaxed font-sans">
+            Unlock direct manufacturer bulk pricing, consolidated multi-vendor ordering, and a highly reliable supply chain network — all through a single point of billing.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link href="/login">
-              <Button size="lg" className="text-lg h-14 px-8 shadow-xl shadow-primary/20">
+              <Button size="lg" className="text-lg h-14 px-8 shadow-xl shadow-primary/30 bg-primary hover:bg-primary/90 cursor-pointer">
                 Retailer Login
               </Button>
             </Link>
-            <a href="#catalog">
-              <Button size="lg" variant="secondary" className="text-lg h-14 px-8 border-none bg-white text-foreground hover:bg-white/90">
-                View Catalog
+            <a href="#contact">
+              <Button size="lg" variant="secondary" className="text-lg h-14 px-8 border border-white/20 bg-white/10 backdrop-blur-md text-white hover:bg-white/20 hover:border-white/30 cursor-pointer">
+                Become a Partner
               </Button>
             </a>
           </div>
         </div>
       </section>
 
-      {/* Features */}
+      {/* Platform Features — B2B Multi-Vendor Positioning */}
       <section className="py-20 bg-card border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <h2 className="text-4xl font-serif font-bold text-foreground mb-4">Why Retailers Choose SupplyGrid</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">We're not just a single supplier — we're an entire network of verified wholesalers working under one platform.</p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            <div className="flex flex-col items-center text-center p-6 hover-elevate rounded-2xl transition-all">
+            <div className="flex flex-col items-center text-center p-8 hover:shadow-lg rounded-2xl transition-all border border-border/50">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6">
-                <CheckCircle2 className="w-8 h-8" />
+                <ShieldCheck className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-serif font-bold mb-3">Premium Quality</h3>
-              <p className="text-muted-foreground">Made with the finest ingredients and traditional recipes preserved over generations.</p>
+              <h3 className="text-xl font-serif font-bold mb-3">Verified Wholesalers</h3>
+              <p className="text-muted-foreground">Every supplier on SupplyGrid is onboarded through a verification process — ensuring quality, reliability, and compliance.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-6 hover-elevate rounded-2xl transition-all">
-              <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center text-secondary mb-6">
-                <Package className="w-8 h-8" />
+            <div className="flex flex-col items-center text-center p-8 hover:shadow-lg rounded-2xl transition-all border border-border/50">
+              <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-600 mb-6">
+                <Users className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-serif font-bold mb-3">Bulk Packaging</h3>
-              <p className="text-muted-foreground">Available in 1KG, 5KG, and 10KG wholesale packs designed for retail freshness.</p>
+              <h3 className="text-xl font-serif font-bold mb-3">Multi-Vendor Network</h3>
+              <p className="text-muted-foreground">Access products across namkeens, FMCG, agro, groceries, and more — from multiple wholesalers in your region, all in one order.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-6 hover-elevate rounded-2xl transition-all">
-              <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center text-accent mb-6">
-                <Truck className="w-8 h-8" />
+            <div className="flex flex-col items-center text-center p-8 hover:shadow-lg rounded-2xl transition-all border border-border/50">
+              <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-600 mb-6">
+                <TrendingUp className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-serif font-bold mb-3">Reliable Supply</h3>
-              <p className="text-muted-foreground">Consistent stock availability and fast dispatch for our registered retail partners.</p>
+              <h3 className="text-xl font-serif font-bold mb-3">Grow Your Retail Business</h3>
+              <p className="text-muted-foreground">Competitive bulk pricing, centralized invoicing, and streamlined restocking help you maximize margins and never go out of stock.</p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Catalog Preview */}
-      <section id="catalog" className="py-24 bg-muted/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-serif font-bold text-foreground mb-4">Our Signature Selection</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">Browse our popular wholesale items. Registered retailers receive specialized volume pricing.</p>
-          </div>
-
-          {productsLoading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {(Array.isArray(products) ? products : []).slice(0, 8).map((product, idx) => (
-                <Card key={product.id} className="overflow-hidden border-none shadow-md hover:shadow-xl transition-shadow group cursor-pointer">
-                  <div className="aspect-square bg-muted relative overflow-hidden">
-                    <img 
-                      src={resolveImageSrc(product.imageUrl, product.name)} 
-                      alt={product.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                    {!product.inStock && (
-                      <div className="absolute inset-0 bg-background/80 flex items-center justify-center backdrop-blur-sm">
-                        <span className="bg-destructive text-destructive-foreground px-4 py-2 font-bold rounded-md">
-                          Out of Stock
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-serif font-bold text-lg leading-tight">{product.name}</h3>
-                    </div>
-                    <div className="text-sm text-muted-foreground mb-4 line-clamp-2 min-h-[2.5rem]">
-                      {product.description || "Traditional Indian savory snack."}
-                    </div>
-                    <div className="flex items-center justify-between pt-4 border-t">
-                      <div className="text-lg font-bold text-primary">₹{product.basePrice} <span className="text-xs text-muted-foreground font-normal">/ {product.unit}</span></div>
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        <ChevronRight className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-12 text-center">
-            <Link href="/login">
-              <Button variant="outline" size="lg" className="rounded-full">
-                View Full Catalog <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </Link>
           </div>
         </div>
       </section>
@@ -308,5 +225,4 @@ export default function Landing() {
   );
 }
 
-// Need to import Package and Truck here since they weren't in lucide-react above
-import { Package, Truck } from "lucide-react";
+

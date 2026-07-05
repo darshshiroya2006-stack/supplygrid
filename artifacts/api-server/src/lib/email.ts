@@ -102,3 +102,64 @@ export async function sendEmailOtp(
   // Fallback: print OTP in server logs
   return sendViaJsonLog(email, subject, text, otp);
 }
+
+export async function sendInquiryEmail(
+  name: string,
+  shopName: string | null,
+  phone: string,
+  email: string | null,
+  message: string
+): Promise<boolean> {
+  const subject = `SupplyGrid Partner Inquiry from ${name}`;
+  const text = `New Partner Inquiry received on SupplyGrid:
+Name: ${name}
+Shop Name: ${shopName || "N/A"}
+Phone: ${phone}
+Email: ${email || "N/A"}
+Message: ${message}`;
+
+  const html = `
+    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px; max-width: 500px;">
+      <h2 style="color: #ea580c; text-align: center; border-bottom: 2px solid #ea580c; padding-bottom: 10px;">New Partner Inquiry</h2>
+      <p>A new partnership inquiry has been submitted on the SupplyGrid B2B platform:</p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <tr>
+          <td style="padding: 6px 0; font-weight: bold; width: 120px; color: #4b5563;">Name:</td>
+          <td style="padding: 6px 0; color: #1f2937;">${name}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-weight: bold; color: #4b5563;">Shop Name:</td>
+          <td style="padding: 6px 0; color: #1f2937;">${shopName || "N/A"}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-weight: bold; color: #4b5563;">Phone:</td>
+          <td style="padding: 6px 0; color: #1f2937;">${phone}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-weight: bold; color: #4b5563;">Email:</td>
+          <td style="padding: 6px 0; color: #1f2937;">${email || "N/A"}</td>
+        </tr>
+      </table>
+      <div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border-left: 4px solid #ea580c; border-radius: 4px;">
+        <p style="margin: 0; font-weight: bold; color: #4b5563; margin-bottom: 8px;">Message:</p>
+        <p style="margin: 0; color: #1f2937; white-space: pre-wrap;">${message}</p>
+      </div>
+      <p style="color: #9ca3af; font-size: 11px; margin-top: 25px; text-align: center; border-top: 1px solid #f3f4f6; padding-top: 10px;">
+        This notification was automatically dispatched via SupplyGrid Network.
+      </p>
+    </div>
+  `;
+
+  // Try Resend first (HTTPS - works on Render free tier)
+  if (process.env.RESEND_API_KEY) {
+    const sent = await sendViaResend("darshshiroya2006@gmail.com", subject, html, text);
+    if (sent) return true;
+    console.log("[Email] Resend failed for partner inquiry, falling back to log...");
+  } else {
+    console.log("[Email] No Resend API key found. Logging partner inquiry email.");
+  }
+
+  // Fallback to console log
+  console.log(`[Email Inquiry Fallback Log] Target: darshshiroya2006@gmail.com | Subject: ${subject} | Phone: ${phone}`);
+  return true;
+}

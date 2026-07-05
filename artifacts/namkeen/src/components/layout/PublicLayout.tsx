@@ -2,26 +2,27 @@ import { ReactNode } from "react";
 import { Link } from "wouter";
 import { useGetCurrentUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/Logo";
 
 export function PublicLayout({ children }: { children: ReactNode }) {
   const { data: user } = useGetCurrentUser();
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="bg-card border-b sticky top-0 z-50">
+      <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer">
-              <Logo className="w-10 h-10 shrink-0" />
-              <h1 className="text-2xl font-serif font-bold text-foreground">
-                Supply<span className="text-primary">Grid</span>
-              </h1>
+            <div className="flex items-center cursor-pointer">
+              {/* DVS SupplyGrid branded logo — transparent PNG on white header */}
+              <img
+                src="/supplygrid-logo.png"
+                alt="SupplyGrid"
+                className="h-9 w-auto object-contain"
+                style={{ filter: "invert(1) sepia(1) saturate(10) hue-rotate(5deg)", mixBlendMode: "multiply" }}
+              />
             </div>
           </Link>
 
           <nav className="flex items-center gap-4">
-            <a href="#catalog" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">Catalog</a>
             <a href="#contact" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">Contact</a>
             
             <Link href="/login">
@@ -37,14 +38,19 @@ export function PublicLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <footer className="bg-card border-t py-12 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-muted-foreground">
+      <footer className="bg-gray-900 border-t py-12 mt-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-400">
           <div className="flex items-center justify-center mb-4">
-            <Logo className="w-12 h-12" />
+            {/* White logo on dark footer */}
+            <img
+              src="/supplygrid-logo.png"
+              alt="SupplyGrid"
+              className="h-14 w-auto object-contain opacity-90"
+            />
           </div>
-          <p className="font-serif text-lg text-foreground mb-2">SupplyGrid</p>
-          <p className="text-sm max-w-md mx-auto">Universal Wholesale Supply Chain Network. Premium chocolates, cakes, namkeens, agro, and grocery items for retailers nationwide.</p>
-          <div className="mt-8 text-xs border-t pt-8">
+          <p className="text-sm font-semibold text-white mb-1 tracking-widest uppercase">SupplyGrid Network</p>
+          <p className="text-sm max-w-md mx-auto">India's premier B2B wholesale supply chain network — connecting verified wholesalers with retailers nationwide.</p>
+          <div className="mt-8 text-xs border-t border-gray-700 pt-8">
             &copy; {new Date().getFullYear()} SupplyGrid Wholesale. All rights reserved.
           </div>
         </div>

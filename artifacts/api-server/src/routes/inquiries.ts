@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, inquiriesTable } from "@workspace/db";
 import { CreateInquiryBody } from "@workspace/api-zod";
 import { requireAdmin } from "../lib/session";
+import { sendInquiryEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -38,6 +39,18 @@ router.post("/", async (req, res) => {
       message: b.message,
     })
     .returning();
+
+  // Dispatch email notification to platform admin (non-blocking)
+  sendInquiryEmail(
+    created.name,
+    created.shopName,
+    created.phone,
+    created.email,
+    created.message
+  ).catch((err) => {
+    console.error("[Inquiry Email] Failed to send email:", err);
+  });
+
   res.status(201).json({
     id: created.id,
     name: created.name,
