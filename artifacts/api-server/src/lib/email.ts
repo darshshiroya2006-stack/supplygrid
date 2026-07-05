@@ -13,19 +13,19 @@ function createSmtpTransporter(): nodemailer.Transporter | null {
 
   if (smtpUser && smtpPass) {
     console.log("[Email] SMTP credentials found, configuring real SMTP Transporter with IPv4 (family: 4).");
-    return nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      family: 4,               // Force IPv4 because Render network does not support outgoing IPv6
-      connectionTimeout: 5000, // 5 seconds
-      greetingTimeout: 5000,   // 5 seconds
-      socketTimeout: 5000,     // 5 seconds
-    });
+   return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+    family: 4,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 5000,
+  } as any);
   }
   return null;
 }
