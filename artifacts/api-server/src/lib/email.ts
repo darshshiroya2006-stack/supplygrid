@@ -1,18 +1,20 @@
 import nodemailer from "nodemailer";
 
-let transporter: nodemailer.Transporter | null = null;
+function createSmtpTransporter(): nodemailer.Transporter | null {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
 
-async function getTransporter(): Promise<nodemailer.Transporter> {
-  if (transporter) return transporter;
-
-  console.log("[Email] Network blocked fallback: Using JSON Transport to print OTP in logs directly.");
-  
-  // 📌 પોર્ટ 465 અને 587 બંને બ્લોક હોવાથી કોઈપણ ઈન્ટરનેટ કનેક્શન વગર સીધું લોગ્સમાં પ્રિન્ટ કરવાનો કાયમી તોડ
-  transporter = nodemailer.createTransport({
-    jsonTransport: true,
-  });
-
-  return transporter;
+  if (smtpUser && smtpPass) {
+    console.log("[Email] SMTP credentials found, configuring real SMTP Transporter.");
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+  }
+  return null;
 }
 
 export async function sendEmailOtp(email: string, otp: string, type: "wholesaler" | "retailer" = "wholesaler"): Promise<boolean> {
@@ -20,8 +22,18 @@ export async function sendEmailOtp(email: string, otp: string, type: "wholesaler
   const bodyText = type === "retailer"
     ? "Thank you for registering as a Retailer on the SupplyGrid B2B supply chain platform."
     : "Thank you for registering as a Wholesaler on the SupplyGrid Wholesale B2B supply chain platform.";
+
+  let client = createSmtpTransporter();
+  let usingRealSmtp = client !== null;
+
+  if (!client) {
+    console.log("[Email] SMTP credentials missing. Using JSON Transport fallback to print OTP in logs.");
+    client = nodemailer.createTransport({
+      jsonTransport: true,
+    });
+  }
+
   try {
-    const client = await getTransporter();
     const info = await client.sendMail({
       from: '"SupplyGrid Network" <noreply@supplygrid.com>',
       to: email,
@@ -41,10 +53,9 @@ export async function sendEmailOtp(email: string, otp: string, type: "wholesaler
       `,
     });
 
-    console.log(`[Email OTP sent successfully] Target: ${email} | Code: ${otp}`);
+    console.log(`[Email OTP sent successfully] Target: ${email} | Code: ${otp} | Using Real SMTP: ${usingRealSmtp}`);
     
-    // 📌 JSON Transport હોવાથી ઓટીપી ડેટા અહીં લાઈવ લોગ્સમાં ઓબ્જેક્ટ તરીકે પણ દેખાશે
-    if (info.message) {
+    if (!usingRealSmtp && info.message) {
       console.log(`[Email JSON Output]: ${info.message}`);
     }
 
@@ -54,7 +65,26 @@ export async function sendEmailOtp(email: string, otp: string, type: "wholesaler
     }
     return true;
   } catch (err) {
-    console.error("[Email OTP Dispatch Error] Failed to send email:", err);
+    console.error("[Email OTP Dispatch Error] Failed to send email via primary transport:", err);
+    
+    if (usingRealSmtp) {
+      console.log("[Email] Attempting fallback to JSON Transport...");
+      try {
+        const fallbackClient = nodemailer.createTransport({ jsonTransport: true });
+        const info = await fallbackClient.sendMail({
+          from: '"SupplyGrid Network" <noreply@supplygrid.com>',
+          to: email,
+          subject: `SupplyGrid ${roleLabel} Verification Code (Fallback)`,
+          text: `Your 6-digit verification code is: ${otp}.`,
+        });
+        if (info.message) {
+          console.log(`[Email JSON Output - Fallback]: ${info.message}`);
+        }
+        return true;
+      } catch (fallbackErr) {
+        console.error("[Email] Fallback transport also failed:", fallbackErr);
+      }
+    }
     return false;
   }
 }
