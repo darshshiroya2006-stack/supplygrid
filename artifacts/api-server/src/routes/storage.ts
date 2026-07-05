@@ -106,26 +106,151 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
   }
 });
 
+// ─── Cloud Storage Helpers ──────────────────────────────────────────────────
+
+async function uploadToCloudinary(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  const cloudinaryUrl = process.env.CLOUDINARY_URL;
+  if (!cloudinaryUrl) throw new Error("CLOUDINARY_URL not configured");
+
+  const match = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+  if (!match) throw new Error("Invalid CLOUDINARY_URL format");
+
+  const [, apiKey, apiSecret, cloudName] = match;
+  const timestamp = Math.round(Date.now() / 1000);
+  
+  const crypto = await import("crypto");
+  const signatureStr = `timestamp=${timestamp}${apiSecret}`;
+  const signature = crypto.createHash("sha1").update(signatureStr).digest("hex");
+
+  const base64Data = buffer.toString("base64");
+  const dataUrl = `data:${mimeType};base64:${base64Data}`;
+
+  const formData = new FormData();
+  formData.append("file", dataUrl);
+  formData.append("api_key", apiKey);
+  formData.append("timestamp", String(timestamp));
+  formData.append("signature", signature);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Cloudinary upload failed: ${errText}`);
+  }
+
+  const resData = await response.json() as any;
+  return resData.secure_url;
+}
+
+async function uploadToPixeldrain(buffer: Buffer, filename: string): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", new Blob([new Uint8Array(buffer)]), filename);
+
+  const response = await fetch("https://pixeldrain.com/api/file", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Pixeldrain upload failed with status ${response.status}`);
+  }
+
+  const data = await response.json() as any;
+  if (!data.id) {
+    throw new Error("Pixeldrain response did not contain file id");
+  }
+
+  return `https://pixeldrain.com/api/file/${data.id}`;
+}
+
+async function uploadToCatbox(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+  const formData = new FormData();
+  formData.append("reqtype", "fileupload");
+  formData.append("fileToUpload", blob, filename);
+
+  const response = await fetch("https://catbox.moe/user/api.php", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Catbox upload failed with status ${response.status}`);
+  }
+
+  const fileUrl = await response.text();
+  return fileUrl.trim();
+}
+
+async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  // 1. Try Cloudinary
+  if (process.env.CLOUDINARY_URL) {
+    try {
+      console.log("[Storage] Attempting to upload to Cloudinary...");
+      return await uploadToCloudinary(buffer, filename, mimeType);
+    } catch (err) {
+      console.error("[Storage] Cloudinary upload failed:", err);
+    }
+  }
+
+  // 2. Try Pixeldrain
+  try {
+    console.log("[Storage] Attempting to upload to Pixeldrain...");
+    return await uploadToPixeldrain(buffer, filename);
+  } catch (err) {
+    console.error("[Storage] Pixeldrain upload failed:", err);
+  }
+
+  // 3. Try Catbox as fallback
+  try {
+    console.log("[Storage] Attempting to upload to Catbox...");
+    return await uploadToCatbox(buffer, filename, mimeType);
+  } catch (err) {
+    console.error("[Storage] Catbox upload failed:", err);
+    throw new Error("All cloud storage uploads failed.");
+  }
+}
+
 /**
  * PUT /storage/local-upload/:filename
  *
- * Direct local file upload endpoint for development mode.
+ * Direct file upload endpoint proxying to Cloud Storage.
  */
 router.put("/storage/local-upload/:filename", (req: Request, res: Response) => {
   const rawFilename = req.params.filename;
   const filename = Array.isArray(rawFilename) ? rawFilename[0] : rawFilename;
-  const targetPath = path.join(uploadDir, filename);
-  const writeStream = fs.createWriteStream(targetPath);
+  const contentType = req.headers["content-type"] || "image/png";
 
-  req.pipe(writeStream);
-
-  writeStream.on("finish", () => {
-    res.json({ ok: true });
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk) => {
+    chunks.push(chunk);
   });
 
-  writeStream.on("error", (err) => {
-    req.log.error({ err }, "Local upload write failed");
-    res.status(500).json({ error: "Failed to save file locally" });
+  req.on("end", async () => {
+    try {
+      const buffer = Buffer.concat(chunks);
+      if (buffer.length === 0) {
+        res.status(400).json({ error: "Empty file body" });
+        return;
+      }
+
+      console.log(`[Storage] Received upload stream for ${filename} (${buffer.length} bytes)`);
+      const imageUrl = await uploadToCloud(buffer, filename, contentType);
+      console.log(`[Storage] Proxy uploaded to cloud successfully: ${imageUrl}`);
+
+      res.json({ ok: true, imageUrl });
+    } catch (err: any) {
+      req.log.error({ err }, "Cloud proxy upload failed");
+      res.status(500).json({ error: err.message || "Failed to upload file to cloud" });
+    }
+  });
+
+  req.on("error", (err) => {
+    req.log.error({ err }, "Local upload read stream failed");
+    res.status(500).json({ error: "Stream error during local upload" });
   });
 });
 
