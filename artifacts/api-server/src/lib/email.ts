@@ -11,33 +11,29 @@ async function sendViaResend(
   if (!apiKey) return false;
 
   try {
-    console.log("[Email] Using Resend API to send email...");
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    console.log("[Email] Using Resend SMTP to send email...");
+    const transporter = nodemailer.createTransport({
+      host: "smtp.resend.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: "resend",
+        pass: apiKey,
       },
-      body: JSON.stringify({
-        from: "SupplyGrid Network <onboarding@resend.dev>",
-        to: [email],
-        subject,
-        html,
-        text,
-      }),
     });
 
-    const data = await response.json() as any;
+    const info = await transporter.sendMail({
+      from: "SupplyGrid <onboarding@resend.dev>",
+      to: email,
+      subject,
+      html,
+      text,
+    });
 
-    if (!response.ok) {
-      console.error("[Resend] API error:", data);
-      return false;
-    }
-
-    console.log(`[Resend] Email sent successfully! ID: ${data.id}`);
+    console.log(`[Resend SMTP] Email sent successfully! MessageID: ${info.messageId}`);
     return true;
   } catch (err) {
-    console.error("[Resend] Failed to send email:", err);
+    console.error("[Resend SMTP] Failed to send email:", err);
     return false;
   }
 }
@@ -184,32 +180,9 @@ export async function sendForgotPasswordOtp(
   `;
 
   if (process.env.RESEND_API_KEY) {
-    try {
-      console.log("[Email] Using Resend API to send forgot password email...");
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "SupplyGrid <onboarding@resend.dev>",
-          to: [email],
-          subject,
-          html,
-          text,
-        }),
-      });
-
-      const data = await response.json() as any;
-      if (response.ok) {
-        console.log(`[Resend] Forgot password email sent successfully! ID: ${data.id}`);
-        return true;
-      }
-      console.error("[Resend] API error:", data);
-    } catch (err) {
-      console.error("[Resend] Failed to send forgot password email:", err);
-    }
+    const sent = await sendViaResend(email, subject, html, text);
+    if (sent) return true;
+    console.log("[Email] Resend SMTP failed for forgot password, falling back to log...");
   }
 
   // Fallback to JSON Transport log
