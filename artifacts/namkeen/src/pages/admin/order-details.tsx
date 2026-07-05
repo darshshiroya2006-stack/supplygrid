@@ -323,8 +323,8 @@ Thank you for your business!`;
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 space-y-0.5 ml-1 mt-4">
-                  {order.sellerAddress && <p>{order.sellerAddress}</p>}
                   {order.sellerPhone && <p>📞 +91 {order.sellerPhone}</p>}
+                  {order.sellerAddress && <p>{order.sellerAddress}</p>}
                   {order.sellerGstin && <p>GSTIN: {order.sellerGstin}</p>}
                 </div>
               </div>

@@ -12,6 +12,7 @@ export const adminsTable = pgTable("admins", {
   email: text("email"),
   address: text("address"),
   gstin: text("gstin"),
+  gst_number: text("gst_number"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

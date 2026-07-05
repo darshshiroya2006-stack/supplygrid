@@ -11,6 +11,8 @@ import {
   Warehouse,
   LogOut,
   Activity,
+  Settings,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
@@ -24,6 +26,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -45,6 +59,74 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     year: new Date().getFullYear(),
     month: "all",
   } as any);
+
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileData, setProfileData] = useState({
+    shopName: "",
+    phone: "",
+    address: "",
+    gst_number: "",
+  });
+  const { toast } = useToast();
+
+  const fetchProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const res = await fetch("/api/wholesaler/profile", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setProfileData({
+          shopName: data.shopName || "",
+          phone: data.phone || "",
+          address: data.address || "",
+          gst_number: data.gst_number || "",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load profile", err);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    try {
+      const res = await fetch("/api/wholesaler/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profileData),
+        credentials: "include",
+      });
+      if (res.ok) {
+        toast({
+          title: "Profile Updated",
+          description: "Your wholesaler profile details have been saved successfully.",
+        });
+        queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+        setShowProfileSettings(false);
+      } else {
+        const errData = await res.json();
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errData.message || "Failed to update profile",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save profile", err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "An unexpected error occurred while saving profile.",
+      });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -114,7 +196,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </div>
           <Button
             variant="outline"
-            className="w-full justify-start gap-3"
+            className="w-full justify-start gap-3 mb-2 cursor-pointer print:hidden"
+            onClick={() => {
+              setShowProfileSettings(true);
+              fetchProfile();
+            }}
+          >
+            <Settings className="w-4 h-4" />
+            Edit Profile
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-3 print:hidden"
             onClick={() => setShowLogoutAlert(true)}
             disabled={logout.isPending}
           >
@@ -193,6 +286,84 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showProfileSettings} onOpenChange={setShowProfileSettings}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Edit Wholesaler Profile</DialogTitle>
+            <DialogDescription>
+              Update your shop name, contact number, official GSTIN, and business address.
+            </DialogDescription>
+          </DialogHeader>
+
+          {profileLoading ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading profile details...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSaveProfile} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="shopName">Shop Name</Label>
+                <Input
+                  id="shopName"
+                  value={profileData.shopName}
+                  onChange={(e) => setProfileData({ ...profileData, shopName: e.target.value })}
+                  placeholder="e.g. Patel General Store"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={profileData.phone}
+                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                  placeholder="e.g. 9876543210"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gstNumber">GST Number</Label>
+                <Input
+                  id="gstNumber"
+                  value={profileData.gst_number}
+                  onChange={(e) => setProfileData({ ...profileData, gst_number: e.target.value })}
+                  placeholder="e.g. 24AAAAP1234A1Z1"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Shop Address</Label>
+                <Textarea
+                  id="address"
+                  value={profileData.address}
+                  onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                  placeholder="Enter full billing address"
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <DialogFooter className="pt-4">
+                <Button type="button" variant="outline" onClick={() => setShowProfileSettings(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={profileSaving}>
+                  {profileSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -93,8 +93,8 @@ export default function ShopOrderDetails() {
               <h1 className="text-2xl font-serif font-bold text-foreground">{order.sellerShopName || "Wholesaler"}</h1>
               {order.sellerName && <p className="text-muted-foreground mt-1 text-sm">{order.sellerName}</p>}
               <div className="text-sm text-muted-foreground mt-2">
-                {order.sellerAddress && <p>{order.sellerAddress}</p>}
                 {order.sellerPhone && <p>📞 +91 {order.sellerPhone}</p>}
+                {order.sellerAddress && <p>{order.sellerAddress}</p>}
                 {order.sellerGstin && <p>GSTIN: {order.sellerGstin}</p>}
               </div>
             </div>

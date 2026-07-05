@@ -510,6 +510,7 @@ async function loadFullOrder(id: number, isCustomer?: boolean) {
       sellerPhone: adminsTable.phone,
       sellerAddress: adminsTable.address,
       sellerGstin: adminsTable.gstin,
+      sellerGstNumber: adminsTable.gst_number,
     })
     .from(ordersTable)
     .leftJoin(customersTable, eq(customersTable.id, ordersTable.customerId))
@@ -534,7 +535,7 @@ async function loadFullOrder(id: number, isCustomer?: boolean) {
     sellerName: row.sellerName ?? "",
     sellerPhone: row.sellerPhone ?? "",
     sellerAddress: row.sellerAddress ?? "",
-    sellerGstin: row.sellerGstin ?? "",
+    sellerGstin: row.sellerGstNumber || row.sellerGstin || "",
     status: row.order.status,
     billingType: row.order.billingType,
     sequenceNumber: row.order.sequenceNumber ?? 0,
