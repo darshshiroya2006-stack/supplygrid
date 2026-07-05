@@ -197,8 +197,11 @@ export default function Login() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>Password</FormLabel>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Enter password" {...field} />
+                      </FormControl>
+                      <div className="flex justify-end mt-1.5">
                         <button
                           type="button"
                           onClick={() => setShowForgotPassword(true)}
@@ -207,9 +210,6 @@ export default function Login() {
                           Forgot Password?
                         </button>
                       </div>
-                      <FormControl>
-                        <Input type="password" placeholder="Enter password" {...field} />
-                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
