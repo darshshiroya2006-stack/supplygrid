@@ -1,4 +1,9 @@
 import nodemailer from "nodemailer";
+import dns from "dns";
+
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 function createSmtpTransporter(): nodemailer.Transporter | null {
   const smtpUser = process.env.SMTP_USER;
