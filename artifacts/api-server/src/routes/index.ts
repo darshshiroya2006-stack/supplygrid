@@ -9,6 +9,7 @@ import stockRouter from "./stock";
 import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
 import wholesalerRouter from "./wholesaler";
+import retailerRouter from "./retailer";
 
 const router: IRouter = Router();
 
@@ -21,6 +22,7 @@ router.use("/inquiries", inquiriesRouter);
 router.use("/stock", stockRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/wholesaler", wholesalerRouter);
+router.use("/retailer", retailerRouter);
 router.use(storageRouter);
 
 export default router;

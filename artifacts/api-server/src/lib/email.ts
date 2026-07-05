@@ -163,3 +163,56 @@ Message: ${message}`;
   console.log(`[Email Inquiry Fallback Log] Target: darshshiroya2006@gmail.com | Subject: ${subject} | Phone: ${phone}`);
   return true;
 }
+
+export async function sendForgotPasswordOtp(
+  email: string,
+  otp: string
+): Promise<boolean> {
+  const subject = "SupplyGrid Password Reset Verification Code";
+  const text = `Your 6-digit password reset code is: ${otp}. This code will expire in 5 minutes.`;
+  const html = `
+    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px; max-width: 500px;">
+      <h2 style="color: #ea580c; text-align: center;">SupplyGrid Password Reset</h2>
+      <p>Hello,</p>
+      <p>You requested to reset your password on the SupplyGrid platform.</p>
+      <p>Please enter the following 6-digit verification code to proceed with resetting your password:</p>
+      <div style="background-color: #f3f4f6; border-radius: 4px; padding: 15px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 24px; font-weight: bold; letter-spacing: 4px; font-family: monospace; color: #111827;">${otp}</span>
+      </div>
+      <p style="color: #6b7280; font-size: 12px; text-align: center;">This code will expire in 5 minutes. If you did not request this, please ignore this email.</p>
+    </div>
+  `;
+
+  if (process.env.RESEND_API_KEY) {
+    try {
+      console.log("[Email] Using Resend API to send forgot password email...");
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "SupplyGrid <onboarding@resend.dev>",
+          to: [email],
+          subject,
+          html,
+          text,
+        }),
+      });
+
+      const data = await response.json() as any;
+      if (response.ok) {
+        console.log(`[Resend] Forgot password email sent successfully! ID: ${data.id}`);
+        return true;
+      }
+      console.error("[Resend] API error:", data);
+    } catch (err) {
+      console.error("[Resend] Failed to send forgot password email:", err);
+    }
+  }
+
+  // Fallback to JSON Transport log
+  console.log(`[Email Forgot Password OTP sent via log] Target: ${email} | Code: ${otp}`);
+  return true;
+}

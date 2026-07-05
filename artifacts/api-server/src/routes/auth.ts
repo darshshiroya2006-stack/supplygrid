@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { eq, and, or } from "drizzle-orm";
 import { db, adminsTable, customersTable, retailerWholesalersTable } from "@workspace/db";
 import { LoginBody } from "@workspace/api-zod";
-import { sendEmailOtp } from "../lib/email.js";
+import { sendEmailOtp, sendForgotPasswordOtp } from "../lib/email.js";
 
 const router: IRouter = Router();
 const emailOtpCache = new Map<string, { otp: string; expiresAt: number }>();
@@ -513,6 +513,141 @@ router.patch("/profile", async (req, res) => {
   }
 
   res.json(updated);
+});
+
+// ─────────────────────────────────────────────
+// FORGOT PASSWORD FLOW
+// ─────────────────────────────────────────────
+
+router.post("/forgot-password/send-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    res.status(400).json({ message: "Email is required." });
+    return;
+  }
+
+  // Check if email exists in adminsTable
+  const [admin] = await db
+    .select({ id: adminsTable.id })
+    .from(adminsTable)
+    .where(eq(adminsTable.email, email.trim()))
+    .limit(1);
+
+  // Check if email exists in customersTable
+  const [customer] = await db
+    .select({ id: customersTable.id })
+    .from(customersTable)
+    .where(eq(customersTable.email, email.trim()))
+    .limit(1);
+
+  if (!admin && !customer) {
+    res.status(404).json({ message: "Email address not registered." });
+    return;
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+  emailOtpCache.set(`forgot-password:${email.toLowerCase().trim()}`, { otp, expiresAt });
+
+  const success = await sendForgotPasswordOtp(email.trim(), otp);
+  if (!success) {
+    res.status(500).json({ message: "Failed to send reset code. Please try again." });
+    return;
+  }
+
+  res.json({ message: "Verification OTP sent successfully." });
+});
+
+router.post("/forgot-password/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    res.status(400).json({ message: "Email and OTP are required." });
+    return;
+  }
+
+  const cached = emailOtpCache.get(`forgot-password:${email.toLowerCase().trim()}`);
+  if (!cached) {
+    res.status(400).json({ message: "No password reset session found for this email. Please request a new OTP." });
+    return;
+  }
+
+  if (Date.now() > cached.expiresAt) {
+    emailOtpCache.delete(`forgot-password:${email.toLowerCase().trim()}`);
+    res.status(400).json({ message: "OTP has expired. Please request a new code." });
+    return;
+  }
+
+  if (cached.otp !== otp.trim()) {
+    res.status(400).json({ message: "Invalid verification code. Please check and try again." });
+    return;
+  }
+
+  res.json({ message: "OTP verified successfully. You may reset your password now." });
+});
+
+router.post("/forgot-password/reset", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    res.status(400).json({ message: "Email, OTP, and new password are required." });
+    return;
+  }
+
+  const cached = emailOtpCache.get(`forgot-password:${email.toLowerCase().trim()}`);
+  if (!cached) {
+    res.status(400).json({ message: "No password reset session found for this email. Please request a new OTP." });
+    return;
+  }
+
+  if (Date.now() > cached.expiresAt) {
+    emailOtpCache.delete(`forgot-password:${email.toLowerCase().trim()}`);
+    res.status(400).json({ message: "OTP has expired. Please request a new code." });
+    return;
+  }
+
+  if (cached.otp !== otp.trim()) {
+    res.status(400).json({ message: "Invalid verification code. Please check and try again." });
+    return;
+  }
+
+  // Hash new password
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  // Update in adminsTable
+  const [admin] = await db
+    .select({ id: adminsTable.id })
+    .from(adminsTable)
+    .where(eq(adminsTable.email, email.trim()))
+    .limit(1);
+
+  if (admin) {
+    await db
+      .update(adminsTable)
+      .set({ passwordHash })
+      .where(eq(adminsTable.id, admin.id));
+  } else {
+    // Update in customersTable
+    const [customer] = await db
+      .select({ id: customersTable.id })
+      .from(customersTable)
+      .where(eq(customersTable.email, email.trim()))
+      .limit(1);
+
+    if (customer) {
+      await db
+        .update(customersTable)
+        .set({ passwordHash })
+        .where(eq(customersTable.id, customer.id));
+    } else {
+      res.status(404).json({ message: "Account not found." });
+      return;
+    }
+  }
+
+  // Clean cache
+  emailOtpCache.delete(`forgot-password:${email.toLowerCase().trim()}`);
+
+  res.json({ message: "Password reset successful. You may sign in now." });
 });
 
 export default router;
