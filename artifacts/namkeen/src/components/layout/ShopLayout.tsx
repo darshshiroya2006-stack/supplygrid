@@ -41,7 +41,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
-      <header className="bg-card border-b sticky top-0 z-10">
+      <header className="bg-card border-b sticky top-0 z-10 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
                       <Link href="/shop">

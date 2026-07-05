@@ -61,7 +61,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen bg-muted/30">
-      <aside className="w-64 bg-card border-r flex flex-col hidden md:flex">
+      <aside className="w-64 bg-card border-r flex flex-col hidden md:flex print:hidden">
         <div className="p-6 border-b">
           <Link href="/admin">
             <div className="cursor-pointer hover:opacity-90 transition-opacity flex items-center gap-3">
@@ -125,7 +125,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="md:hidden bg-card border-b p-4 flex items-center justify-between">
+        <header className="md:hidden bg-card border-b p-4 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-3 min-w-0">
             <Logo className="w-7 h-7 shrink-0" />
             <div className="min-w-0">
@@ -141,7 +141,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Mobile Nav */}
-        <div className="md:hidden overflow-x-auto flex border-b bg-card p-2 gap-2 hide-scrollbar">
+        <div className="md:hidden overflow-x-auto flex border-b bg-card p-2 gap-2 hide-scrollbar print:hidden">
           {NAV_ITEMS.map((item) => {
             const isActive = location === item.href || (location.startsWith(item.href) && item.href !== '/admin');
             return (

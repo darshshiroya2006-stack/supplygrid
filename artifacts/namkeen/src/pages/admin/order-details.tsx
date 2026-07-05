@@ -307,7 +307,7 @@ Thank you for your business!`;
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : order ? (
-        <div className="print-invoice-wrapper">
+        <div className="print-invoice-wrapper print:w-full print:max-w-none">
           <div
             id="invoice"
             className="bg-white text-black p-8 sm:p-12 rounded-xl shadow-sm border max-w-3xl mx-auto print:shadow-none print:border-none print:rounded-none print:p-0 print:max-w-none"
