@@ -99,6 +99,7 @@ export async function sendEmailOtp(
   return sendViaJsonLog(email, subject, text, otp);
 }
 
+
 export async function sendInquiryEmail(
   name: string,
   shopName: string | null,

@@ -185,6 +185,17 @@ export default function AdminProducts() {
 
   return (
     <AdminLayout>
+      {/* File input lives at ROOT level — outside the Dialog portal so the ref
+          is always mounted and fileInputRef.current?.click() never fails due to
+          Radix focus-trap blocking synthetic clicks inside a portal. */}
+      <input
+        id="product-photo-input"
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-foreground">Products</h1>
@@ -444,16 +455,15 @@ export default function AdminProducts() {
                             }}
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => fileInputRef.current?.click()}
-                              disabled={isUploading}
+                            {/* label htmlFor triggers the root-level file input natively */}
+                            <label
+                              htmlFor="product-photo-input"
+                              className={`inline-flex items-center justify-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors ${isUploading ? "cursor-not-allowed opacity-60 pointer-events-none" : "cursor-pointer"}`}
+                              aria-disabled={isUploading}
                             >
-                              <Upload className="w-3 h-3 mr-1" />
+                              <Upload className="w-3 h-3" />
                               Change
-                            </Button>
+                            </label>
                             <Button
                               type="button"
                               size="sm"
@@ -466,11 +476,15 @@ export default function AdminProducts() {
                           </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          className="w-full py-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isUploading}
+                        /* Use <label htmlFor> — natively wires to the input without any
+                           synthetic .click() call, so it works reliably inside Radix portals */
+                        <label
+                          htmlFor="product-photo-input"
+                          className={`w-full py-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground transition-colors ${
+                            isUploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                          }`}
+                          aria-disabled={isUploading}
+                          onClick={(e) => isUploading && e.preventDefault()}
                         >
                           {isUploading ? (
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -481,7 +495,7 @@ export default function AdminProducts() {
                             {isUploading ? "Uploading…" : "Click to upload photo"}
                           </span>
                           <span className="text-xs">JPG, PNG, WebP supported</span>
-                        </button>
+                        </label>
                       )}
                     </div>
 
@@ -490,14 +504,8 @@ export default function AdminProducts() {
                       <Progress value={progress} className="h-1.5 mt-1" />
                     )}
 
-                    {/* Hidden file input */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
+                    {/* Note: the actual <input type="file"> is rendered at the component
+                        root (outside this Dialog) so the ref stays stable. See above. */
 
                     <FormMessage />
                   </FormItem>
