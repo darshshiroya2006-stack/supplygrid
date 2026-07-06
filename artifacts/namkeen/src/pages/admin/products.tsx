@@ -505,8 +505,7 @@ export default function AdminProducts() {
                     )}
 
                     {/* Note: the actual <input type="file"> is rendered at the component
-                        root (outside this Dialog) so the ref stays stable. See above. */
-
+                        root (outside this Dialog) so the ref stays stable. See above. */}
                     <FormMessage />
                   </FormItem>
                 )}
