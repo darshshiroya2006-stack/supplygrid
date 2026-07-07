@@ -908,6 +908,9 @@ components:
         conversionFactor:
           type: integer
           nullable: true
+        availableStock:
+          type: integer
+          nullable: true
       required: [name, unit, basePrice]
 
     UpdateProductBody:
@@ -937,6 +940,9 @@ components:
           type: string
           nullable: true
         conversionFactor:
+          type: integer
+          nullable: true
+        availableStock:
           type: integer
           nullable: true
 

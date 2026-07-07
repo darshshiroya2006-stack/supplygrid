@@ -38,27 +38,6 @@ router.get("/", async (req, res) => {
     }
   }
 
-  let stockQuery = db
-    .select({
-      productId: productsTable.id,
-      totalStock: sql<string>`coalesce(sum(case when ${stockEntriesTable.orderId} is null then ${stockEntriesTable.quantityKg} else 0 end), 0) - coalesce(sum(case when ${stockEntriesTable.orderId} is not null then abs(${stockEntriesTable.quantityKg}) else 0 end), 0)`,
-    })
-    .from(productsTable)
-    .leftJoin(
-      stockEntriesTable,
-      eq(stockEntriesTable.productId, productsTable.id)
-    );
-
-  if (vendorIdFilter !== null) {
-    stockQuery = stockQuery.where(eq(productsTable.vendorId, vendorIdFilter)) as any;
-  }
-
-  const stockRows = await stockQuery.groupBy(productsTable.id);
-
-  const stockMap = new Map<number, number>(
-    stockRows.map((r) => [r.productId, Number(r.totalStock || 0)])
-  );
-
   let productsQuery = db.select().from(productsTable);
   if (vendorIdFilter !== null) {
     productsQuery = productsQuery.where(eq(productsTable.vendorId, vendorIdFilter)) as any;
@@ -85,8 +64,8 @@ router.get("/", async (req, res) => {
       basePrice: Number(p.basePrice),
       customerPrice: priceMap.has(p.id) ? Number(priceMap.get(p.id)) : null,
       imageUrl: p.imageUrl,
-      inStock: (stockMap.get(p.id) ?? 0) > 0,
-      availableStock: stockMap.get(p.id) ?? 0,
+      inStock: p.availableStock > 0,
+      availableStock: p.availableStock,
       createdAt: p.createdAt.toISOString(),
       mainUnit: p.mainUnit,
       subUnit: p.subUnit,
@@ -127,8 +106,26 @@ router.post("/", requireAdmin, async (req, res) => {
       mainUnit: b.mainUnit ?? null,
       subUnit: b.subUnit ?? null,
       conversionFactor: b.conversionFactor ?? null,
+      availableStock: b.availableStock ?? 0,
     })
     .returning();
+
+  // If there is initial stock, create a stock entry
+  if (created.availableStock > 0) {
+    await db.insert(stockEntriesTable).values({
+      date: new Date().toISOString().split("T")[0],
+      supplierName: "Initial Stock",
+      productName: created.name,
+      quantityKg: String(created.availableStock),
+      totalPrice: "0",
+      amountPaidToSupplier: "0",
+      purchasePaymentStatus: "fully_paid",
+      notes: "Initial stock set during product creation",
+      productId: created.id,
+      vendorId: created.vendorId,
+    });
+  }
+
   res.status(201).json({
     id: created.id,
     name: created.name,
@@ -138,8 +135,8 @@ router.post("/", requireAdmin, async (req, res) => {
     basePrice: Number(created.basePrice),
     customerPrice: null,
     imageUrl: created.imageUrl,
-    inStock: false,
-    availableStock: 0,
+    inStock: created.availableStock > 0,
+    availableStock: created.availableStock,
     createdAt: created.createdAt.toISOString(),
     mainUnit: created.mainUnit,
     subUnit: created.subUnit,
@@ -170,10 +167,23 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   if (b.mainUnit !== undefined) updates.mainUnit = b.mainUnit;
   if (b.subUnit !== undefined) updates.subUnit = b.subUnit;
   if (b.conversionFactor !== undefined) updates.conversionFactor = b.conversionFactor;
+  if (b.availableStock !== undefined) updates.availableStock = b.availableStock;
 
   const conds = [eq(productsTable.id, id)];
   if (req.session.role === "wholesaler") {
     conds.push(eq(productsTable.vendorId, req.session.userId!));
+  }
+
+  // Get existing product to compute stock diff
+  const [existing] = await db
+    .select()
+    .from(productsTable)
+    .where(and(...conds))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ message: "Product not found or not owned by you" });
+    return;
   }
 
   const [updated] = await db
@@ -181,11 +191,25 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     .set(updates)
     .where(and(...conds))
     .returning();
-  if (!updated) {
-    res.status(404).json({ message: "Product not found or not owned by you" });
-    return;
+
+  // If stock was updated, add an adjustment entry
+  const nextStock = b.availableStock ?? 0;
+  if (b.availableStock !== undefined && nextStock !== existing.availableStock) {
+    const diff = nextStock - existing.availableStock;
+    await db.insert(stockEntriesTable).values({
+      date: new Date().toISOString().split("T")[0],
+      supplierName: "Stock Adjustment",
+      productName: updated.name,
+      quantityKg: String(diff),
+      totalPrice: "0",
+      amountPaidToSupplier: "0",
+      purchasePaymentStatus: "fully_paid",
+      notes: "Stock adjustment via Edit Product",
+      productId: updated.id,
+      vendorId: updated.vendorId,
+    });
   }
-  const availableStock = await getAvailableStock(id);
+
   res.json({
     id: updated.id,
     name: updated.name,
@@ -195,8 +219,8 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     basePrice: Number(updated.basePrice),
     customerPrice: null,
     imageUrl: updated.imageUrl,
-    inStock: availableStock > 0,
-    availableStock,
+    inStock: updated.availableStock > 0,
+    availableStock: updated.availableStock,
     createdAt: updated.createdAt.toISOString(),
     mainUnit: updated.mainUnit,
     subUnit: updated.subUnit,

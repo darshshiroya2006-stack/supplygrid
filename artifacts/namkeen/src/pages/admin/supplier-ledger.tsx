@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import {
   useGetSupplier,
@@ -71,6 +71,8 @@ const entrySchema = z.object({
   quantityKg: z.coerce.number().min(0.1, "Quantity must be positive"),
   totalPrice: z.coerce.number().min(0, "Total price must be non-negative"),
   notes: z.string().optional().nullable(),
+  boxesPurchased: z.coerce.number().optional().nullable(),
+  packetsPurchased: z.coerce.number().optional().nullable(),
 });
 
 export default function AdminSupplierLedger() {
@@ -152,8 +154,25 @@ export default function AdminSupplierLedger() {
       quantityKg: 0,
       totalPrice: 0,
       notes: "",
+      boxesPurchased: null,
+      packetsPurchased: null,
     },
   });
+
+  const selectedProductName = form.watch("productName");
+  const selectedProduct = useMemo(() => {
+    return products?.find(p => p.name === selectedProductName);
+  }, [products, selectedProductName]);
+
+  const boxes = form.watch("boxesPurchased");
+  const packets = form.watch("packetsPurchased");
+
+  useEffect(() => {
+    if (selectedProduct?.conversionFactor && selectedProduct.conversionFactor > 0) {
+      const totalPackets = (Number(boxes) || 0) * selectedProduct.conversionFactor + (Number(packets) || 0);
+      form.setValue("quantityKg", totalPackets);
+    }
+  }, [boxes, packets, selectedProduct?.conversionFactor, form]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListSupplierEntriesQueryKey(supplierId) });
@@ -186,6 +205,8 @@ export default function AdminSupplierLedger() {
       quantityKg: 0,
       totalPrice: 0,
       notes: "",
+      boxesPurchased: null,
+      packetsPurchased: null,
     });
     setEditingEntry(null);
     setIsCustomProduct(false);
@@ -193,6 +214,16 @@ export default function AdminSupplierLedger() {
   };
 
   const openEditDialog = (entry: StockEntry) => {
+    const isCatalog = products?.some(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase()) ?? false;
+    const prod = products?.find(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase());
+    
+    let initialBoxes = null;
+    let initialPackets = null;
+    if (prod?.conversionFactor && prod.conversionFactor > 0) {
+      initialBoxes = Math.floor(entry.quantityKg / prod.conversionFactor);
+      initialPackets = entry.quantityKg % prod.conversionFactor;
+    }
+
     form.reset({
       date: entry.date,
       supplierName: entry.supplierName,
@@ -200,17 +231,19 @@ export default function AdminSupplierLedger() {
       quantityKg: entry.quantityKg,
       totalPrice: entry.totalPrice,
       notes: entry.notes,
+      boxesPurchased: initialBoxes,
+      packetsPurchased: initialPackets,
     });
     setEditingEntry(entry);
-    const isCatalog = products?.some(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase()) ?? false;
     setIsCustomProduct(!isCatalog);
     setIsFormOpen(true);
   };
 
   const onSubmit = (values: z.infer<typeof entrySchema>) => {
+    const { boxesPurchased, packetsPurchased, ...data } = values;
     if (editingEntry) {
       updateEntry.mutate(
-        { id: editingEntry.id, data: values },
+        { id: editingEntry.id, data },
         {
           onSuccess: () => {
             toast.success("Entry updated");
@@ -228,7 +261,7 @@ export default function AdminSupplierLedger() {
       );
     } else {
       createEntry.mutate(
-        { data: values },
+        { data },
         {
           onSuccess: () => {
             toast.success("Purchase entry added");
@@ -692,30 +725,83 @@ export default function AdminSupplierLedger() {
                   );
                 }}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="quantityKg"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Quantity (KG)</FormLabel>
-                      <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="totalPrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Total Amount (₹)</FormLabel>
-                      <FormControl><Input type="number" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              {selectedProduct?.conversionFactor && selectedProduct.conversionFactor > 0 ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="boxesPurchased"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{selectedProduct.mainUnit || "Boxes"} Purchased</FormLabel>
+                          <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="packetsPurchased"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{selectedProduct.subUnit || "Packets"} Purchased</FormLabel>
+                          <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="quantityKg"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Total Quantity ({selectedProduct.subUnit || "Packets"})</FormLabel>
+                          <FormControl><Input type="number" {...field} readOnly className="bg-muted/50 cursor-not-allowed" /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="totalPrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Total Amount (₹)</FormLabel>
+                          <FormControl><Input type="number" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="quantityKg"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quantity (KG)</FormLabel>
+                        <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="totalPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Amount (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="notes"

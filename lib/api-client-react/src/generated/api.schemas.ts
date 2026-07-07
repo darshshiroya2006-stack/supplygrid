@@ -79,6 +79,7 @@ export interface CreateProductBody {
   mainUnit?: string | null;
   subUnit?: string | null;
   conversionFactor?: number | null;
+  availableStock?: number | null;
 }
 
 export interface UpdateProductBody {
@@ -92,6 +93,7 @@ export interface UpdateProductBody {
   mainUnit?: string | null;
   subUnit?: string | null;
   conversionFactor?: number | null;
+  availableStock?: number | null;
 }
 
 export interface Customer {

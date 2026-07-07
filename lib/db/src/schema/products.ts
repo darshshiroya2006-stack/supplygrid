@@ -14,6 +14,7 @@ export const productsTable = pgTable("products", {
   mainUnit: text("main_unit"),
   subUnit: text("sub_unit"),
   conversionFactor: integer("conversion_factor"),
+  availableStock: integer("available_stock").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

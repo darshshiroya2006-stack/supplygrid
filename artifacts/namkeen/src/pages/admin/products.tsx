@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, getListProductsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,6 +47,9 @@ const productSchema = z.object({
   mainUnit: z.string().optional().nullable(),
   subUnit: z.string().optional().nullable(),
   conversionFactor: z.coerce.number().optional().nullable(),
+  availableStock: z.coerce.number().optional().nullable(),
+  stockBoxes: z.coerce.number().optional().nullable(),
+  stockPackets: z.coerce.number().optional().nullable(),
 });
 
 type ProductForm = z.infer<typeof productSchema>;
@@ -70,8 +73,20 @@ export default function AdminProducts() {
       name: "", description: "", category: "Snacks", unit: "1 KG",
       basePrice: 0, imageUrl: null, inStock: true,
       mainUnit: "", subUnit: "", conversionFactor: null,
+      availableStock: 0, stockBoxes: null, stockPackets: null,
     },
   });
+
+  const stockBoxes = form.watch("stockBoxes");
+  const stockPackets = form.watch("stockPackets");
+  const formConversionFactor = form.watch("conversionFactor");
+
+  useEffect(() => {
+    if (formConversionFactor && formConversionFactor > 0) {
+      const total = (Number(stockBoxes) || 0) * formConversionFactor + (Number(stockPackets) || 0);
+      form.setValue("availableStock", total);
+    }
+  }, [stockBoxes, stockPackets, formConversionFactor, form]);
 
   const currentImageUrl = form.watch("imageUrl");
   const imageSrc = productImageSrc(currentImageUrl);
@@ -97,12 +112,20 @@ export default function AdminProducts() {
       name: "", description: "", category: "Snacks", unit: "1 KG",
       basePrice: 0, imageUrl: null, inStock: true,
       mainUnit: "", subUnit: "", conversionFactor: null,
+      availableStock: 0, stockBoxes: null, stockPackets: null,
     });
     setEditingProduct(null);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (product: Product) => {
+    let initialBoxes = null;
+    let initialPackets = null;
+    if (product.conversionFactor && product.conversionFactor > 0) {
+      initialBoxes = Math.floor((product.availableStock ?? 0) / product.conversionFactor);
+      initialPackets = (product.availableStock ?? 0) % product.conversionFactor;
+    }
+
     form.reset({
       name: product.name,
       description: product.description,
@@ -114,13 +137,17 @@ export default function AdminProducts() {
       mainUnit: product.mainUnit ?? "",
       subUnit: product.subUnit ?? "",
       conversionFactor: product.conversionFactor ?? null,
+      availableStock: product.availableStock ?? 0,
+      stockBoxes: initialBoxes,
+      stockPackets: initialPackets,
     });
     setEditingProduct(product);
     setIsDialogOpen(true);
   };
 
   const onSubmit = (values: ProductForm) => {
-    const payload = { ...values, imageUrl: values.imageUrl || null };
+    const { stockBoxes, stockPackets, ...data } = values;
+    const payload = { ...data, imageUrl: data.imageUrl || null };
     if (editingProduct) {
       updateProduct.mutate(
         { id: editingProduct.id, data: payload },
@@ -269,22 +296,24 @@ export default function AdminProducts() {
                   const hasConversion = product.conversionFactor && product.conversionFactor > 0;
                   const boxesLeft = hasConversion ? Math.floor(stock / product.conversionFactor!) : 0;
                   const packetsLeft = hasConversion ? stock % product.conversionFactor! : 0;
+                  const mainUnitName = (product.mainUnit && isNaN(Number(product.mainUnit))) ? product.mainUnit : "Boxes";
+                  const subUnitName = (product.subUnit && isNaN(Number(product.subUnit))) ? product.subUnit : "Packets";
 
                   let badgeClass = "";
                   let statusLabel = "";
 
                   if (isOutOfStock) {
                     badgeClass = "bg-red-50 text-red-700 border-red-200 hover:bg-red-50";
-                    statusLabel = hasConversion ? `0 ${product.mainUnit || 'Boxes'}, 0 ${product.subUnit || 'Packets'} Left` : "Out of Stock";
+                    statusLabel = hasConversion ? `0 ${mainUnitName}, 0 ${subUnitName} Left` : "Out of Stock";
                   } else if (isLowStock) {
                     badgeClass = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50";
                     statusLabel = hasConversion 
-                      ? `${boxesLeft} ${product.mainUnit || 'Boxes'}, ${packetsLeft} ${product.subUnit || 'Packets'} Left`
+                      ? `${boxesLeft} ${mainUnitName}, ${packetsLeft} ${subUnitName} Left`
                       : `${stock} Left`;
                   } else {
                     badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50";
                     statusLabel = hasConversion 
-                      ? `${boxesLeft} ${product.mainUnit || 'Boxes'}, ${packetsLeft} ${product.subUnit || 'Packets'} Left`
+                      ? `${boxesLeft} ${mainUnitName}, ${packetsLeft} ${subUnitName} Left`
                       : `${stock} Left`;
                   }
 
@@ -321,7 +350,7 @@ export default function AdminProducts() {
                           {!isOutOfStock && (
                             <span className="text-xs text-muted-foreground font-medium pl-0.5">
                               {hasConversion ? (
-                                `Total: ${stock} ${product.subUnit || 'Packets'}`
+                                `Total: ${stock} ${subUnitName}`
                               ) : qty === 1 ? (
                                 `${stock} ${metric}`
                               ) : (
@@ -422,7 +451,7 @@ export default function AdminProducts() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 mt-4">
                 <FormField
                   control={form.control}
                   name="basePrice"
@@ -434,29 +463,6 @@ export default function AdminProducts() {
                     </FormItem>
                   )}
                 />
-                {editingProduct ? (
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 mt-8 h-[42px] bg-muted/30">
-                    <span className="text-sm font-medium">Available Stock</span>
-                    <span className={`text-sm font-bold ${
-                      (editingProduct.availableStock ?? 0) <= 0 
-                        ? "text-destructive" 
-                        : (editingProduct.availableStock ?? 0) < 10 
-                          ? "text-amber-600 font-bold" 
-                          : "text-emerald-600"
-                    }`}>
-                      {editingProduct.conversionFactor && editingProduct.conversionFactor > 0 ? (
-                        `${Math.floor((editingProduct.availableStock ?? 0) / editingProduct.conversionFactor)} ${editingProduct.mainUnit || 'Boxes'}, ${(editingProduct.availableStock ?? 0) % editingProduct.conversionFactor} ${editingProduct.subUnit || 'Packets'} Left`
-                      ) : (
-                        `${editingProduct.availableStock ?? 0} ${editingProduct.unit}`
-                      )}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex flex-row items-center justify-between rounded-lg border border-dashed p-3 mt-8 h-[42px] bg-muted/10 text-muted-foreground">
-                    <span className="text-sm font-medium">Initial Stock</span>
-                    <span className="text-xs italic">Set via Stock Ledger</span>
-                  </div>
-                )}
               </div>
 
               {/* Bulk to Loose Conversion Options */}
@@ -468,7 +474,7 @@ export default function AdminProducts() {
                     name="mainUnit"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Main Unit</FormLabel>
+                        <FormLabel>Main Unit Name</FormLabel>
                         <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Box" /></FormControl>
                         <FormMessage />
                       </FormItem>
@@ -479,7 +485,7 @@ export default function AdminProducts() {
                     name="subUnit"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Sub-Unit</FormLabel>
+                        <FormLabel>Sub-Unit Name</FormLabel>
                         <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Packet" /></FormControl>
                         <FormMessage />
                       </FormItem>
@@ -498,6 +504,68 @@ export default function AdminProducts() {
                   />
                 </div>
               </div>
+
+              {/* Stock Input Fields */}
+              <div className="border-t pt-4 mt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-foreground">Stock Management</h4>
+                {formConversionFactor && formConversionFactor > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="stockBoxes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Stock ({form.watch("mainUnit") || "Boxes"})</FormLabel>
+                            <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="stockPackets"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Stock ({form.watch("subUnit") || "Packets"})</FormLabel>
+                            <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="availableStock"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Total Stock ({form.watch("subUnit") || "Packets"})</FormLabel>
+                            <FormControl><Input type="number" {...field} value={field.value ?? ""} readOnly className="bg-muted/50 cursor-not-allowed" /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="availableStock"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Available Stock ({form.watch("unit") || "Units"})</FormLabel>
+                          <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+
+
 
               {/* Product Photo Upload */}
               <FormField

@@ -1165,9 +1165,11 @@ export default function AdminIndex() {
                     const hasConversion = row.conversionFactor && row.conversionFactor > 0;
                     const boxesLeft = hasConversion ? Math.floor(row.closingKg / row.conversionFactor) : 0;
                     const packetsLeft = hasConversion ? row.closingKg % row.conversionFactor : 0;
+                    const mainUnitName = (row.mainUnit && isNaN(Number(row.mainUnit))) ? row.mainUnit : "Boxes";
+                    const subUnitName = (row.subUnit && isNaN(Number(row.subUnit))) ? row.subUnit : "Packets";
 
                     const displayVal = hasConversion
-                      ? `${boxesLeft} ${row.mainUnit || 'Boxes'}, ${packetsLeft} ${row.subUnit || 'Packets'} Left`
+                      ? `${boxesLeft} ${mainUnitName}, ${packetsLeft} ${subUnitName} Left`
                       : `${row.closingKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG`;
 
                     return (
@@ -1185,7 +1187,7 @@ export default function AdminIndex() {
                         <TableCell className="text-right pr-6">
                           {row.closingKg <= 0 ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-red-600 bg-red-100 dark:bg-red-950/30 animate-pulse">
-                              {hasConversion ? `0 ${row.mainUnit || 'Boxes'}, 0 ${row.subUnit || 'Packets'} Left` : "0 KG (Unavailable)"}
+                              {hasConversion ? `0 ${mainUnitName}, 0 ${subUnitName} Left` : "0 KG (Unavailable)"}
                             </span>
                           ) : row.closingKg < 20 ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs text-amber-600 bg-amber-100 dark:bg-amber-950/30 font-semibold">

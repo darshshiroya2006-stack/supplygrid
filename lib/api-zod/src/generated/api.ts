@@ -148,7 +148,8 @@ export const CreateProductBody = zod.object({
   "inStock": zod.boolean().optional(),
   "mainUnit": zod.string().nullish(),
   "subUnit": zod.string().nullish(),
-  "conversionFactor": zod.number().nullish()
+  "conversionFactor": zod.number().nullish(),
+  "availableStock": zod.number().nullish()
 })
 
 export const CreateProductResponse = zod.object({
@@ -186,7 +187,8 @@ export const UpdateProductBody = zod.object({
   "inStock": zod.boolean().optional(),
   "mainUnit": zod.string().nullish(),
   "subUnit": zod.string().nullish(),
-  "conversionFactor": zod.number().nullish()
+  "conversionFactor": zod.number().nullish(),
+  "availableStock": zod.number().nullish()
 })
 
 export const UpdateProductResponse = zod.object({

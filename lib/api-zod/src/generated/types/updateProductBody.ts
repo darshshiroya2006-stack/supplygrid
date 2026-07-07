@@ -17,4 +17,5 @@ export interface UpdateProductBody {
   mainUnit?: string | null;
   subUnit?: string | null;
   conversionFactor?: number | null;
+  availableStock?: number | null;
 }
