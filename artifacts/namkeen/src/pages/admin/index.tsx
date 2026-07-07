@@ -1167,6 +1167,7 @@ export default function AdminIndex() {
                     const packetsLeft = hasConversion ? row.closingKg % row.conversionFactor : 0;
                     const mainUnitName = (row.mainUnit && isNaN(Number(row.mainUnit))) ? row.mainUnit : "Boxes";
                     const subUnitName = (row.subUnit && isNaN(Number(row.subUnit))) ? row.subUnit : "Packets";
+                    const suffix = hasConversion ? ` ${subUnitName}` : " KG";
 
                     const displayVal = hasConversion
                       ? `${boxesLeft} ${mainUnitName}, ${packetsLeft} ${subUnitName} Left`
@@ -1176,13 +1177,13 @@ export default function AdminIndex() {
                       <TableRow key={row.productName} className="hover:bg-muted/10 transition-colors">
                         <TableCell className="pl-6 font-medium text-foreground">{row.productName}</TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.openingStockKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG
+                          {row.openingStockKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}{suffix}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.purchasedKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG
+                          {row.purchasedKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}{suffix}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.soldKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG
+                          {row.soldKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}{suffix}
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           {row.closingKg <= 0 ? (

@@ -1334,6 +1334,18 @@ components:
         notes:
           type: string
           nullable: true
+        unit:
+          type: string
+          nullable: true
+        mainUnit:
+          type: string
+          nullable: true
+        subUnit:
+          type: string
+          nullable: true
+        conversionFactor:
+          type: number
+          nullable: true
       required: [date, supplierName, productName, quantityKg, totalPrice]
 
     UpdateStockEntryBody:
@@ -1351,6 +1363,18 @@ components:
           type: number
         notes:
           type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        mainUnit:
+          type: string
+          nullable: true
+        subUnit:
+          type: string
+          nullable: true
+        conversionFactor:
+          type: number
           nullable: true
 
     DashboardSummary:

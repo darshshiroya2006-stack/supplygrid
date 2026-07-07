@@ -324,6 +324,25 @@ router.post("/", requireAdmin, async (req, res) => {
     resolvedProductId = product ? product.id : null;
   }
 
+  if (vendorId && !resolvedProductId) {
+    const [newProduct] = await db
+      .insert(productsTable)
+      .values({
+        name: b.productName,
+        description: "Automatically created via stock entry",
+        category: "Snacks",
+        unit: b.unit ?? "KG",
+        mainUnit: b.mainUnit ?? null,
+        subUnit: b.subUnit ?? null,
+        conversionFactor: b.conversionFactor ?? null,
+        basePrice: "0",
+        vendorId,
+        availableStock: 0,
+      })
+      .returning();
+    resolvedProductId = newProduct.id;
+  }
+
   const [created] = await db
     .insert(stockEntriesTable)
     .values({
@@ -384,7 +403,26 @@ router.patch("/:id", requireAdmin, async (req, res) => {
           )
         )
         .limit(1);
-      updates.productId = product ? product.id : null;
+      let pId = product ? product.id : null;
+      if (!pId) {
+        const [newProduct] = await db
+          .insert(productsTable)
+          .values({
+            name: b.productName,
+            description: "Automatically created via stock entry",
+            category: "Snacks",
+            unit: b.unit ?? "KG",
+            mainUnit: b.mainUnit ?? null,
+            subUnit: b.subUnit ?? null,
+            conversionFactor: b.conversionFactor ?? null,
+            basePrice: "0",
+            vendorId: req.session.userId!,
+            availableStock: 0,
+          })
+          .returning();
+        pId = newProduct.id;
+      }
+      updates.productId = pId;
     }
   }
   if (b.quantityKg !== undefined) updates.quantityKg = String(b.quantityKg);

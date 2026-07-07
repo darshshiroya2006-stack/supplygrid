@@ -71,6 +71,7 @@ const entrySchema = z.object({
   quantityKg: z.coerce.number().min(0.1, "Quantity must be positive"),
   totalPrice: z.coerce.number().min(0, "Total price must be non-negative"),
   notes: z.string().optional().nullable(),
+  unit: z.string().default("KG"),
   boxesPurchased: z.coerce.number().optional().nullable(),
   packetsPurchased: z.coerce.number().optional().nullable(),
 });
@@ -154,6 +155,7 @@ export default function AdminSupplierLedger() {
       quantityKg: 0,
       totalPrice: 0,
       notes: "",
+      unit: "KG",
       boxesPurchased: null,
       packetsPurchased: null,
     },
@@ -164,20 +166,29 @@ export default function AdminSupplierLedger() {
     return products?.find(p => p.name === selectedProductName);
   }, [products, selectedProductName]);
 
-  const isUnitProduct = useMemo(() => {
-    if (isCustomProduct || !selectedProduct) return false;
-    return !selectedProduct.unit.toLowerCase().includes("kg");
-  }, [isCustomProduct, selectedProduct]);
+  const selectedUnit = form.watch("unit") || "KG";
+
+  // If catalog product is selected, auto-select unit type in dropdown and pre-populate Sub-Unit conversion factor
+  useEffect(() => {
+    if (selectedProduct) {
+      const isUnit = selectedProduct.unit && !selectedProduct.unit.toLowerCase().includes("kg");
+      const unitVal = isUnit ? "Unit" : "KG";
+      form.setValue("unit", unitVal);
+      if (isUnit && selectedProduct.conversionFactor) {
+        form.setValue("packetsPurchased", selectedProduct.conversionFactor);
+      }
+    }
+  }, [selectedProduct, form]);
 
   const boxes = form.watch("boxesPurchased");
   const packets = form.watch("packetsPurchased");
 
   useEffect(() => {
-    if (isUnitProduct && selectedProduct?.conversionFactor && selectedProduct.conversionFactor > 0) {
-      const totalPackets = (Number(boxes) || 0) * selectedProduct.conversionFactor + (Number(packets) || 0);
-      form.setValue("quantityKg", totalPackets);
+    if (selectedUnit === "Unit") {
+      const total = (Number(boxes) || 0) * (Number(packets) || 0);
+      form.setValue("quantityKg", total);
     }
-  }, [boxes, packets, isUnitProduct, selectedProduct?.conversionFactor, form]);
+  }, [boxes, packets, selectedUnit, form]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListSupplierEntriesQueryKey(supplierId) });
@@ -210,6 +221,7 @@ export default function AdminSupplierLedger() {
       quantityKg: 0,
       totalPrice: 0,
       notes: "",
+      unit: "KG",
       boxesPurchased: null,
       packetsPurchased: null,
     });
@@ -222,12 +234,14 @@ export default function AdminSupplierLedger() {
     const isCatalog = products?.some(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase()) ?? false;
     const prod = products?.find(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase());
     
+    const isUnit = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
+    const unitVal = isUnit ? "Unit" : "KG";
+
     let initialBoxes = null;
     let initialPackets = null;
-    const isUnitProd = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
-    if (isUnitProd && prod?.conversionFactor && prod.conversionFactor > 0) {
+    if (isUnit && prod?.conversionFactor && prod.conversionFactor > 0) {
       initialBoxes = Math.floor(entry.quantityKg / prod.conversionFactor);
-      initialPackets = entry.quantityKg % prod.conversionFactor;
+      initialPackets = prod.conversionFactor;
     }
 
     form.reset({
@@ -237,6 +251,7 @@ export default function AdminSupplierLedger() {
       quantityKg: entry.quantityKg,
       totalPrice: entry.totalPrice,
       notes: entry.notes,
+      unit: unitVal,
       boxesPurchased: initialBoxes,
       packetsPurchased: initialPackets,
     });
@@ -246,10 +261,17 @@ export default function AdminSupplierLedger() {
   };
 
   const onSubmit = (values: z.infer<typeof entrySchema>) => {
-    const { boxesPurchased, packetsPurchased, ...data } = values;
+    const { boxesPurchased, packetsPurchased, unit, ...data } = values;
+    const payload = {
+      ...data,
+      unit,
+      mainUnit: unit === "Unit" ? "Box" : null,
+      subUnit: unit === "Unit" ? "Packet" : null,
+      conversionFactor: unit === "Unit" ? Number(packetsPurchased) : null,
+    };
     if (editingEntry) {
       updateEntry.mutate(
-        { id: editingEntry.id, data },
+        { id: editingEntry.id, data: payload },
         {
           onSuccess: () => {
             toast.success("Entry updated");
@@ -731,77 +753,94 @@ export default function AdminSupplierLedger() {
                   );
                 }}
               />
-              {isUnitProduct ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="boxesPurchased"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{selectedProduct?.mainUnit || "Boxes"} Purchased</FormLabel>
-                          <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="packetsPurchased"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Loose {selectedProduct?.subUnit || "Packets"} Purchased</FormLabel>
-                          <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="quantityKg"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Total Quantity ({selectedProduct?.subUnit || "Packets"})</FormLabel>
-                          <FormControl><Input type="number" {...field} value={field.value ?? ""} readOnly className="bg-muted/50 cursor-not-allowed" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="totalPrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Total Amount (₹)</FormLabel>
-                          <FormControl><Input type="number" {...field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                   control={form.control}
+                   name="unit"
+                   render={({ field }) => (
+                     <FormItem>
+                       <FormLabel>Unit Type</FormLabel>
+                       <Select onValueChange={field.onChange} value={field.value || "KG"}>
+                         <FormControl>
+                           <SelectTrigger>
+                             <SelectValue placeholder="Select unit" />
+                           </SelectTrigger>
+                         </FormControl>
+                         <SelectContent>
+                           <SelectItem value="KG">KG</SelectItem>
+                           <SelectItem value="Unit">Unit</SelectItem>
+                         </SelectContent>
+                       </Select>
+                       <FormMessage />
+                     </FormItem>
+                   )}
+                 />
+                 <FormField
+                   control={form.control}
+                   name="totalPrice"
+                   render={({ field }) => (
+                     <FormItem>
+                       <FormLabel>Total Amount (₹)</FormLabel>
+                       <FormControl><Input type="number" {...field} /></FormControl>
+                       <FormMessage />
+                     </FormItem>
+                   )}
+                 />
+              </div>
+
+              {selectedUnit === "Unit" ? (
+                <div className="grid grid-cols-3 gap-4 border-t pt-4 mt-4">
                   <FormField
                     control={form.control}
-                    name="quantityKg"
+                    name="boxesPurchased"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Quantity (KG)</FormLabel>
-                        <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
+                        <FormLabel>Main Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 5" />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="totalPrice"
+                    name="packetsPurchased"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Total Amount (₹)</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormLabel>Sub-Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 30" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="quantityKg"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Sub-Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ""} disabled className="bg-muted/50 cursor-not-allowed" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 border-t pt-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name="quantityKg"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quantity (KG)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.1" {...field} value={field.value ?? ""} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

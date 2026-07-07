@@ -13,4 +13,8 @@ export interface CreateStockEntryBody {
   quantityKg: number;
   totalPrice: number;
   notes?: string | null;
+  unit?: string | null;
+  mainUnit?: string | null;
+  subUnit?: string | null;
+  conversionFactor?: number | null;
 }

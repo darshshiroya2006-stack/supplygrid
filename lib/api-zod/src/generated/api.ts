@@ -731,7 +731,11 @@ export const CreateStockEntryBody = zod.object({
   "productName": zod.string(),
   "quantityKg": zod.number(),
   "totalPrice": zod.number(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "mainUnit": zod.string().nullish(),
+  "subUnit": zod.string().nullish(),
+  "conversionFactor": zod.number().nullish()
 })
 
 export const CreateStockEntryResponse = zod.object({
@@ -761,7 +765,11 @@ export const UpdateStockEntryBody = zod.object({
   "productName": zod.string().optional(),
   "quantityKg": zod.number().optional(),
   "totalPrice": zod.number().optional(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "mainUnit": zod.string().nullish(),
+  "subUnit": zod.string().nullish(),
+  "conversionFactor": zod.number().nullish()
 })
 
 export const UpdateStockEntryResponse = zod.object({
