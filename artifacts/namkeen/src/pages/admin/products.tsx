@@ -127,14 +127,17 @@ export default function AdminProducts() {
   };
 
   const openEditDialog = (product: Product) => {
+    // A product is "Unit" type if its unit field is not KG or if it has a conversion factor set
+    const isUnitType = product.conversionFactor != null && product.conversionFactor > 0
+      || (product.unit && !product.unit.toLowerCase().includes("kg"));
+    const normalizedUnit = isUnitType ? "Unit" : "KG";
+
     let initialBoxes = null;
     let initialPackets = null;
-    if (product.conversionFactor && product.conversionFactor > 0) {
+    if (isUnitType && product.conversionFactor && product.conversionFactor > 0) {
       initialBoxes = Math.floor((product.availableStock ?? 0) / product.conversionFactor);
       initialPackets = (product.availableStock ?? 0) % product.conversionFactor;
     }
-
-    const normalizedUnit = (product.unit && product.unit.toLowerCase().includes("kg")) ? "KG" : "Unit";
 
     form.reset({
       name: product.name,
