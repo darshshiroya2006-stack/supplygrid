@@ -390,6 +390,9 @@ router.get("/analytics", requireAdmin, async (req, res) => {
       SELECT
         p.id   AS product_id,
         p.name AS product_name,
+        p.main_unit AS main_unit,
+        p.sub_unit AS sub_unit,
+        p.conversion_factor AS conversion_factor,
         COALESCE((
           SELECT SUM(se_open.quantity_kg::float8)
           FROM stock_entries se_open
@@ -426,6 +429,9 @@ router.get("/analytics", requireAdmin, async (req, res) => {
     type LedgerRow = {
       product_id: number;
       product_name: string;
+      main_unit: string | null;
+      sub_unit: string | null;
+      conversion_factor: number | null;
       opening_stock_kg: number;
       purchased_kg: number;
       sold_kg: number;
@@ -576,6 +582,9 @@ router.get("/analytics", requireAdmin, async (req, res) => {
         purchasedKg: purchased,
         soldKg: sold,
         closingKg: closing,
+        mainUnit: r.main_unit,
+        subUnit: r.sub_unit,
+        conversionFactor: r.conversion_factor,
       };
     });
 

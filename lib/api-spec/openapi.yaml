@@ -866,6 +866,15 @@ components:
           type: boolean
         availableStock:
           type: number
+        mainUnit:
+          type: string
+          nullable: true
+        subUnit:
+          type: string
+          nullable: true
+        conversionFactor:
+          type: integer
+          nullable: true
         createdAt:
           type: string
       required: [id, name, unit, basePrice, inStock, availableStock, createdAt]
@@ -890,6 +899,15 @@ components:
           nullable: true
         inStock:
           type: boolean
+        mainUnit:
+          type: string
+          nullable: true
+        subUnit:
+          type: string
+          nullable: true
+        conversionFactor:
+          type: integer
+          nullable: true
       required: [name, unit, basePrice]
 
     UpdateProductBody:
@@ -912,6 +930,15 @@ components:
           nullable: true
         inStock:
           type: boolean
+        mainUnit:
+          type: string
+          nullable: true
+        subUnit:
+          type: string
+          nullable: true
+        conversionFactor:
+          type: integer
+          nullable: true
 
     Customer:
       type: object
@@ -1429,7 +1456,6 @@ components:
       properties:
         uploadURL:
           type: string
-          format: uri
           description: Presigned GCS URL for PUT upload.
         objectPath:
           type: string

@@ -44,6 +44,9 @@ const productSchema = z.object({
   basePrice: z.coerce.number().min(0, "Price must be positive"),
   imageUrl: z.string().optional().nullable(),
   inStock: z.boolean().default(true),
+  mainUnit: z.string().optional().nullable(),
+  subUnit: z.string().optional().nullable(),
+  conversionFactor: z.coerce.number().optional().nullable(),
 });
 
 type ProductForm = z.infer<typeof productSchema>;
@@ -66,6 +69,7 @@ export default function AdminProducts() {
     defaultValues: {
       name: "", description: "", category: "Snacks", unit: "1 KG",
       basePrice: 0, imageUrl: null, inStock: true,
+      mainUnit: "", subUnit: "", conversionFactor: null,
     },
   });
 
@@ -89,7 +93,11 @@ export default function AdminProducts() {
   );
 
   const openCreateDialog = () => {
-    form.reset({ name: "", description: "", category: "Snacks", unit: "1 KG", basePrice: 0, imageUrl: null, inStock: true });
+    form.reset({
+      name: "", description: "", category: "Snacks", unit: "1 KG",
+      basePrice: 0, imageUrl: null, inStock: true,
+      mainUnit: "", subUnit: "", conversionFactor: null,
+    });
     setEditingProduct(null);
     setIsDialogOpen(true);
   };
@@ -103,6 +111,9 @@ export default function AdminProducts() {
       basePrice: product.basePrice,
       imageUrl: product.imageUrl ?? null,
       inStock: product.inStock,
+      mainUnit: product.mainUnit ?? "",
+      subUnit: product.subUnit ?? "",
+      conversionFactor: product.conversionFactor ?? null,
     });
     setEditingProduct(product);
     setIsDialogOpen(true);
@@ -255,18 +266,26 @@ export default function AdminProducts() {
                   const isOutOfStock = stock <= 0;
                   const isLowStock = stock > 0 && stock < 15;
 
+                  const hasConversion = product.conversionFactor && product.conversionFactor > 0;
+                  const boxesLeft = hasConversion ? Math.floor(stock / product.conversionFactor!) : 0;
+                  const packetsLeft = hasConversion ? stock % product.conversionFactor! : 0;
+
                   let badgeClass = "";
                   let statusLabel = "";
 
                   if (isOutOfStock) {
                     badgeClass = "bg-red-50 text-red-700 border-red-200 hover:bg-red-50";
-                    statusLabel = "Out of Stock";
+                    statusLabel = hasConversion ? `0 ${product.mainUnit || 'Boxes'}, 0 ${product.subUnit || 'Packets'} Left` : "Out of Stock";
                   } else if (isLowStock) {
                     badgeClass = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50";
-                    statusLabel = `${stock} Left`;
+                    statusLabel = hasConversion 
+                      ? `${boxesLeft} ${product.mainUnit || 'Boxes'}, ${packetsLeft} ${product.subUnit || 'Packets'} Left`
+                      : `${stock} Left`;
                   } else {
                     badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50";
-                    statusLabel = `${stock} Left`;
+                    statusLabel = hasConversion 
+                      ? `${boxesLeft} ${product.mainUnit || 'Boxes'}, ${packetsLeft} ${product.subUnit || 'Packets'} Left`
+                      : `${stock} Left`;
                   }
 
                   return (
@@ -301,7 +320,9 @@ export default function AdminProducts() {
                           </Badge>
                           {!isOutOfStock && (
                             <span className="text-xs text-muted-foreground font-medium pl-0.5">
-                              {qty === 1 ? (
+                              {hasConversion ? (
+                                `Total: ${stock} ${product.subUnit || 'Packets'}`
+                              ) : qty === 1 ? (
                                 `${stock} ${metric}`
                               ) : (
                                 `${stock} packs (${qty} per pack)`
@@ -423,7 +444,11 @@ export default function AdminProducts() {
                           ? "text-amber-600 font-bold" 
                           : "text-emerald-600"
                     }`}>
-                      {editingProduct.availableStock ?? 0} {editingProduct.unit}
+                      {editingProduct.conversionFactor && editingProduct.conversionFactor > 0 ? (
+                        `${Math.floor((editingProduct.availableStock ?? 0) / editingProduct.conversionFactor)} ${editingProduct.mainUnit || 'Boxes'}, ${(editingProduct.availableStock ?? 0) % editingProduct.conversionFactor} ${editingProduct.subUnit || 'Packets'} Left`
+                      ) : (
+                        `${editingProduct.availableStock ?? 0} ${editingProduct.unit}`
+                      )}
                     </span>
                   </div>
                 ) : (
@@ -432,6 +457,46 @@ export default function AdminProducts() {
                     <span className="text-xs italic">Set via Stock Ledger</span>
                   </div>
                 )}
+              </div>
+
+              {/* Bulk to Loose Conversion Options */}
+              <div className="border-t pt-4 mt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-foreground">Bulk to Loose Conversion (Optional)</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="mainUnit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Main Unit</FormLabel>
+                        <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Box" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="subUnit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sub-Unit</FormLabel>
+                        <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Packet" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="conversionFactor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Conversion Factor</FormLabel>
+                        <FormControl><Input type="number" {...field} value={field.value || ""} placeholder="e.g. 30" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
               {/* Product Photo Upload */}

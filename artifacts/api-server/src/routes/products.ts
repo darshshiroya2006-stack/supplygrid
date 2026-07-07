@@ -88,6 +88,9 @@ router.get("/", async (req, res) => {
       inStock: (stockMap.get(p.id) ?? 0) > 0,
       availableStock: stockMap.get(p.id) ?? 0,
       createdAt: p.createdAt.toISOString(),
+      mainUnit: p.mainUnit,
+      subUnit: p.subUnit,
+      conversionFactor: p.conversionFactor,
     })),
   );
 });
@@ -121,6 +124,9 @@ router.post("/", requireAdmin, async (req, res) => {
       imageUrl: b.imageUrl ?? null,
       inStock: b.inStock ?? true,
       vendorId: req.session.role === "wholesaler" ? req.session.userId : null,
+      mainUnit: b.mainUnit ?? null,
+      subUnit: b.subUnit ?? null,
+      conversionFactor: b.conversionFactor ?? null,
     })
     .returning();
   res.status(201).json({
@@ -135,6 +141,9 @@ router.post("/", requireAdmin, async (req, res) => {
     inStock: false,
     availableStock: 0,
     createdAt: created.createdAt.toISOString(),
+    mainUnit: created.mainUnit,
+    subUnit: created.subUnit,
+    conversionFactor: created.conversionFactor,
   });
 });
 
@@ -158,6 +167,9 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   if (b.basePrice !== undefined) updates.basePrice = String(b.basePrice);
   if (b.imageUrl !== undefined) updates.imageUrl = b.imageUrl;
   if (b.inStock !== undefined) updates.inStock = b.inStock;
+  if (b.mainUnit !== undefined) updates.mainUnit = b.mainUnit;
+  if (b.subUnit !== undefined) updates.subUnit = b.subUnit;
+  if (b.conversionFactor !== undefined) updates.conversionFactor = b.conversionFactor;
 
   const conds = [eq(productsTable.id, id)];
   if (req.session.role === "wholesaler") {
@@ -186,6 +198,9 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     inStock: availableStock > 0,
     availableStock,
     createdAt: updated.createdAt.toISOString(),
+    mainUnit: updated.mainUnit,
+    subUnit: updated.subUnit,
+    conversionFactor: updated.conversionFactor,
   });
 });
 

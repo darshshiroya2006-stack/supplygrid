@@ -11,6 +11,9 @@ export const productsTable = pgTable("products", {
   imageUrl: text("image_url"),
   inStock: boolean("in_stock").notNull().default(true),
   vendorId: integer("vendor_id").references(() => adminsTable.id),
+  mainUnit: text("main_unit"),
+  subUnit: text("sub_unit"),
+  conversionFactor: integer("conversion_factor"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

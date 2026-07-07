@@ -1156,12 +1156,20 @@ export default function AdminIndex() {
                     <TableHead className="text-right font-semibold">Opening Stock (KG)</TableHead>
                     <TableHead className="text-right font-semibold">Purchased (KG)</TableHead>
                     <TableHead className="text-right font-semibold">Sold (KG)</TableHead>
-                    <TableHead className="text-right font-semibold pr-6">Current Stock (KG)</TableHead>
+                    <TableHead className="text-right font-semibold pr-6">Current Stock</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLedger.map((row) => {
+                  {filteredLedger.map((row: any) => {
                     const isOutOfStock = row.closingKg <= 0;
+                    const hasConversion = row.conversionFactor && row.conversionFactor > 0;
+                    const boxesLeft = hasConversion ? Math.floor(row.closingKg / row.conversionFactor) : 0;
+                    const packetsLeft = hasConversion ? row.closingKg % row.conversionFactor : 0;
+
+                    const displayVal = hasConversion
+                      ? `${boxesLeft} ${row.mainUnit || 'Boxes'}, ${packetsLeft} ${row.subUnit || 'Packets'} Left`
+                      : `${row.closingKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG`;
+
                     return (
                       <TableRow key={row.productName} className="hover:bg-muted/10 transition-colors">
                         <TableCell className="pl-6 font-medium text-foreground">{row.productName}</TableCell>
@@ -1177,15 +1185,15 @@ export default function AdminIndex() {
                         <TableCell className="text-right pr-6">
                           {row.closingKg <= 0 ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-red-600 bg-red-100 dark:bg-red-950/30 animate-pulse">
-                              0 KG (Unavailable)
+                              {hasConversion ? `0 ${row.mainUnit || 'Boxes'}, 0 ${row.subUnit || 'Packets'} Left` : "0 KG (Unavailable)"}
                             </span>
                           ) : row.closingKg < 20 ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs text-amber-600 bg-amber-100 dark:bg-amber-950/30 font-semibold">
-                              {row.closingKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG
+                              {displayVal}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                              {row.closingKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG
+                              {displayVal}
                             </span>
                           )}
                         </TableCell>
