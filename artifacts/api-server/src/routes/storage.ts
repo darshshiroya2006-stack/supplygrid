@@ -125,15 +125,18 @@ async function uploadToCloudinary(buffer: Buffer, filename: string, mimeType: st
   const base64Data = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64:${base64Data}`;
 
-  const formData = new FormData();
-  formData.append("file", dataUrl);
-  formData.append("api_key", apiKey);
-  formData.append("timestamp", String(timestamp));
-  formData.append("signature", signature);
+  const params = new URLSearchParams();
+  params.append("file", dataUrl);
+  params.append("api_key", apiKey);
+  params.append("timestamp", String(timestamp));
+  params.append("signature", signature);
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
   });
 
   if (!response.ok) {
@@ -146,12 +149,28 @@ async function uploadToCloudinary(buffer: Buffer, filename: string, mimeType: st
 }
 
 async function uploadToPixeldrain(buffer: Buffer, filename: string): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", new Blob([new Uint8Array(buffer)]), filename);
+  const boundary = `----WebKitFormBoundary${Math.random().toString(36).substring(2, 15)}`;
+  const boundaryMiddle = `--${boundary}\r\n`;
+  const boundaryLast = `--${boundary}--\r\n`;
+
+  const bodyParts: Buffer[] = [];
+  bodyParts.push(Buffer.from(boundaryMiddle));
+  bodyParts.push(Buffer.from(`Content-Disposition: form-data; name="file"; filename="${filename}"\r\n`));
+  bodyParts.push(Buffer.from("Content-Type: application/octet-stream\r\n\r\n"));
+  bodyParts.push(buffer);
+  bodyParts.push(Buffer.from("\r\n"));
+  bodyParts.push(Buffer.from(boundaryLast));
+
+  const bodyBuffer = Buffer.concat(bodyParts);
 
   const response = await fetch("https://pixeldrain.com/api/file", {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      "Content-Length": String(bodyBuffer.length),
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    },
+    body: bodyBuffer,
   });
 
   if (!response.ok) {
@@ -167,18 +186,40 @@ async function uploadToPixeldrain(buffer: Buffer, filename: string): Promise<str
 }
 
 async function uploadToCatbox(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
-  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-  const formData = new FormData();
-  formData.append("reqtype", "fileupload");
-  formData.append("fileToUpload", blob, filename);
+  const boundary = `----WebKitFormBoundary${Math.random().toString(36).substring(2, 15)}`;
+  const boundaryMiddle = `--${boundary}\r\n`;
+  const boundaryLast = `--${boundary}--\r\n`;
+
+  const bodyParts: Buffer[] = [];
+
+  // reqtype field
+  bodyParts.push(Buffer.from(boundaryMiddle));
+  bodyParts.push(Buffer.from('Content-Disposition: form-data; name="reqtype"\r\n\r\nfileupload\r\n'));
+
+  // fileToUpload field
+  bodyParts.push(Buffer.from(boundaryMiddle));
+  bodyParts.push(Buffer.from(`Content-Disposition: form-data; name="fileToUpload"; filename="${filename}"\r\n`));
+  bodyParts.push(Buffer.from(`Content-Type: ${mimeType}\r\n\r\n`));
+  bodyParts.push(buffer);
+  bodyParts.push(Buffer.from("\r\n"));
+
+  // Closing boundary
+  bodyParts.push(Buffer.from(boundaryLast));
+
+  const bodyBuffer = Buffer.concat(bodyParts);
 
   const response = await fetch("https://catbox.moe/user/api.php", {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      "Content-Length": String(bodyBuffer.length),
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    },
+    body: bodyBuffer,
   });
 
   if (!response.ok) {
-    throw new Error(`Catbox upload failed with status ${response.status}`);
+    throw new Error(`Catbox upload failed with status ${response.status}: ${await response.text()}`);
   }
 
   const fileUrl = await response.text();
