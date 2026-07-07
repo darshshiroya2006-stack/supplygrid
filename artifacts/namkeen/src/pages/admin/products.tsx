@@ -27,6 +27,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const STORAGE_BASE = "/api/storage";
 
@@ -70,7 +77,7 @@ export default function AdminProducts() {
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      name: "", description: "", category: "Snacks", unit: "1 KG",
+      name: "", description: "", category: "Snacks", unit: "KG",
       basePrice: 0, imageUrl: null, inStock: true,
       mainUnit: "", subUnit: "", conversionFactor: null,
       availableStock: 0, stockBoxes: null, stockPackets: null,
@@ -80,13 +87,14 @@ export default function AdminProducts() {
   const stockBoxes = form.watch("stockBoxes");
   const stockPackets = form.watch("stockPackets");
   const formConversionFactor = form.watch("conversionFactor");
+  const unitType = form.watch("unit");
 
   useEffect(() => {
-    if (formConversionFactor && formConversionFactor > 0) {
+    if (unitType === "Unit" && formConversionFactor && formConversionFactor > 0) {
       const total = (Number(stockBoxes) || 0) * formConversionFactor + (Number(stockPackets) || 0);
       form.setValue("availableStock", total);
     }
-  }, [stockBoxes, stockPackets, formConversionFactor, form]);
+  }, [stockBoxes, stockPackets, formConversionFactor, unitType, form]);
 
   const currentImageUrl = form.watch("imageUrl");
   const imageSrc = productImageSrc(currentImageUrl);
@@ -109,7 +117,7 @@ export default function AdminProducts() {
 
   const openCreateDialog = () => {
     form.reset({
-      name: "", description: "", category: "Snacks", unit: "1 KG",
+      name: "", description: "", category: "Snacks", unit: "KG",
       basePrice: 0, imageUrl: null, inStock: true,
       mainUnit: "", subUnit: "", conversionFactor: null,
       availableStock: 0, stockBoxes: null, stockPackets: null,
@@ -126,11 +134,13 @@ export default function AdminProducts() {
       initialPackets = (product.availableStock ?? 0) % product.conversionFactor;
     }
 
+    const normalizedUnit = (product.unit && product.unit.toLowerCase().includes("kg")) ? "KG" : "Unit";
+
     form.reset({
       name: product.name,
       description: product.description,
       category: product.category,
-      unit: product.unit,
+      unit: normalizedUnit,
       basePrice: product.basePrice,
       imageUrl: product.imageUrl ?? null,
       inStock: product.inStock,
@@ -147,6 +157,11 @@ export default function AdminProducts() {
 
   const onSubmit = (values: ProductForm) => {
     const { stockBoxes, stockPackets, ...data } = values;
+    if (data.unit === "KG") {
+      data.mainUnit = null;
+      data.subUnit = null;
+      data.conversionFactor = null;
+    }
     const payload = { ...data, imageUrl: data.imageUrl || null };
     if (editingProduct) {
       updateProduct.mutate(
@@ -444,13 +459,23 @@ export default function AdminProducts() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Unit</FormLabel>
-                      <FormControl><Input {...field} placeholder="e.g. 1 KG" /></FormControl>
+                      <Select onValueChange={field.onChange} value={field.value || "KG"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="KG">KG</SelectItem>
+                          <SelectItem value="Unit">Unit</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
+ 
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <FormField
                   control={form.control}
@@ -464,51 +489,53 @@ export default function AdminProducts() {
                   )}
                 />
               </div>
-
-              {/* Bulk to Loose Conversion Options */}
-              <div className="border-t pt-4 mt-4 space-y-4">
-                <h4 className="text-sm font-semibold text-foreground">Bulk to Loose Conversion (Optional)</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="mainUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Main Unit Name</FormLabel>
-                        <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Box" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="subUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sub-Unit Name</FormLabel>
-                        <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Packet" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="conversionFactor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Conversion Factor</FormLabel>
-                        <FormControl><Input type="number" {...field} value={field.value || ""} placeholder="e.g. 30" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+ 
+              {unitType === "Unit" && (
+                /* Bulk to Loose Conversion Options */
+                <div className="border-t pt-4 mt-4 space-y-4">
+                  <h4 className="text-sm font-semibold text-foreground">Bulk to Loose Conversion</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="mainUnit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Main Unit Name</FormLabel>
+                          <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Box" /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="subUnit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sub-Unit Name</FormLabel>
+                          <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Packet" /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="conversionFactor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Conversion Factor</FormLabel>
+                          <FormControl><Input type="number" {...field} value={field.value || ""} placeholder="e.g. 30" /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
-              </div>
-
+              )}
+ 
               {/* Stock Input Fields */}
               <div className="border-t pt-4 mt-4 space-y-4">
                 <h4 className="text-sm font-semibold text-foreground">Stock Management</h4>
-                {formConversionFactor && formConversionFactor > 0 ? (
+                {unitType === "Unit" ? (
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -516,7 +543,7 @@ export default function AdminProducts() {
                         name="stockBoxes"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Stock ({form.watch("mainUnit") || "Boxes"})</FormLabel>
+                            <FormLabel>Current Stock ({form.watch("mainUnit") || "Boxes"})</FormLabel>
                             <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                             <FormMessage />
                           </FormItem>
@@ -527,7 +554,7 @@ export default function AdminProducts() {
                         name="stockPackets"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Stock ({form.watch("subUnit") || "Packets"})</FormLabel>
+                            <FormLabel>Current Stock (Loose {form.watch("subUnit") || "Packets"})</FormLabel>
                             <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                             <FormMessage />
                           </FormItem>
@@ -555,7 +582,7 @@ export default function AdminProducts() {
                       name="availableStock"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Available Stock ({form.watch("unit") || "Units"})</FormLabel>
+                          <FormLabel>Available Stock (KG)</FormLabel>
                           <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                           <FormMessage />
                         </FormItem>

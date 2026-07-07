@@ -164,15 +164,20 @@ export default function AdminSupplierLedger() {
     return products?.find(p => p.name === selectedProductName);
   }, [products, selectedProductName]);
 
+  const isUnitProduct = useMemo(() => {
+    if (isCustomProduct || !selectedProduct) return false;
+    return !selectedProduct.unit.toLowerCase().includes("kg");
+  }, [isCustomProduct, selectedProduct]);
+
   const boxes = form.watch("boxesPurchased");
   const packets = form.watch("packetsPurchased");
 
   useEffect(() => {
-    if (selectedProduct?.conversionFactor && selectedProduct.conversionFactor > 0) {
+    if (isUnitProduct && selectedProduct?.conversionFactor && selectedProduct.conversionFactor > 0) {
       const totalPackets = (Number(boxes) || 0) * selectedProduct.conversionFactor + (Number(packets) || 0);
       form.setValue("quantityKg", totalPackets);
     }
-  }, [boxes, packets, selectedProduct?.conversionFactor, form]);
+  }, [boxes, packets, isUnitProduct, selectedProduct?.conversionFactor, form]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListSupplierEntriesQueryKey(supplierId) });
@@ -219,7 +224,8 @@ export default function AdminSupplierLedger() {
     
     let initialBoxes = null;
     let initialPackets = null;
-    if (prod?.conversionFactor && prod.conversionFactor > 0) {
+    const isUnitProd = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
+    if (isUnitProd && prod?.conversionFactor && prod.conversionFactor > 0) {
       initialBoxes = Math.floor(entry.quantityKg / prod.conversionFactor);
       initialPackets = entry.quantityKg % prod.conversionFactor;
     }
@@ -725,7 +731,7 @@ export default function AdminSupplierLedger() {
                   );
                 }}
               />
-              {selectedProduct?.conversionFactor && selectedProduct.conversionFactor > 0 ? (
+              {isUnitProduct ? (
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -733,7 +739,7 @@ export default function AdminSupplierLedger() {
                       name="boxesPurchased"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{selectedProduct.mainUnit || "Boxes"} Purchased</FormLabel>
+                          <FormLabel>{selectedProduct?.mainUnit || "Boxes"} Purchased</FormLabel>
                           <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                           <FormMessage />
                         </FormItem>
@@ -744,7 +750,7 @@ export default function AdminSupplierLedger() {
                       name="packetsPurchased"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{selectedProduct.subUnit || "Packets"} Purchased</FormLabel>
+                          <FormLabel>Loose {selectedProduct?.subUnit || "Packets"} Purchased</FormLabel>
                           <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                           <FormMessage />
                         </FormItem>
@@ -757,8 +763,8 @@ export default function AdminSupplierLedger() {
                       name="quantityKg"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Total Quantity ({selectedProduct.subUnit || "Packets"})</FormLabel>
-                          <FormControl><Input type="number" {...field} readOnly className="bg-muted/50 cursor-not-allowed" /></FormControl>
+                          <FormLabel>Total Quantity ({selectedProduct?.subUnit || "Packets"})</FormLabel>
+                          <FormControl><Input type="number" {...field} value={field.value ?? ""} readOnly className="bg-muted/50 cursor-not-allowed" /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
