@@ -90,8 +90,9 @@ export default function AdminProducts() {
   const unitType = form.watch("unit");
 
   useEffect(() => {
-    if (unitType === "Unit" && formConversionFactor && formConversionFactor > 0) {
-      const total = (Number(stockBoxes) || 0) * formConversionFactor + (Number(stockPackets) || 0);
+    if (unitType === "Unit") {
+      const cf = Number(formConversionFactor) || 0;
+      const total = (Number(stockBoxes) || 0) * cf + (Number(stockPackets) || 0);
       form.setValue("availableStock", total);
     }
   }, [stockBoxes, stockPackets, formConversionFactor, unitType, form]);
@@ -537,14 +538,14 @@ export default function AdminProducts() {
                 <h4 className="text-sm font-semibold text-foreground">Stock Management</h4>
                 {unitType === "Unit" ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <FormField
                         control={form.control}
                         name="stockBoxes"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Current Stock ({form.watch("mainUnit") || "Boxes"})</FormLabel>
-                            <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                            <FormLabel>Current Stock (Boxes)</FormLabel>
+                            <FormControl><Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 5" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -554,21 +555,19 @@ export default function AdminProducts() {
                         name="stockPackets"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Current Stock (Loose {form.watch("subUnit") || "Packets"})</FormLabel>
-                            <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                            <FormLabel>Current Stock (Loose Packets)</FormLabel>
+                            <FormControl><Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 0" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="availableStock"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Total Stock ({form.watch("subUnit") || "Packets"})</FormLabel>
-                            <FormControl><Input type="number" {...field} value={field.value ?? ""} readOnly className="bg-muted/50 cursor-not-allowed" /></FormControl>
+                            <FormLabel>Total Stock (Sub-Units)</FormLabel>
+                            <FormControl><Input type="number" {...field} value={field.value ?? ""} disabled className="bg-muted/50 cursor-not-allowed" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
