@@ -251,7 +251,14 @@ async function uploadToGCS(buffer: Buffer, filename: string, mimeType: string): 
   return `https://storage.googleapis.com/${bucketName}/uploads/${filename}`;
 }
 
-async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+async function saveToLocal(buffer: Buffer, filename: string): Promise<string> {
+  const filePath = path.join(uploadDir, filename);
+  await fs.promises.writeFile(filePath, buffer);
+  console.log(`[Storage] Saved file locally to ${filePath}`);
+  return `/objects/uploads/${filename}`;
+}
+
+async function uploadToStorage(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
   // 1. Try GCS / Firebase Storage
   if (process.env.GCS_BUCKET) {
     try {
@@ -272,21 +279,33 @@ async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string)
     }
   }
 
-  // 3. Try Pixeldrain
-  try {
-    console.log("[Storage] Attempting to upload to Pixeldrain...");
-    return await uploadToPixeldrain(buffer, filename);
-  } catch (err) {
-    console.error("[Storage] Pixeldrain upload failed:", err);
+  // 3. Try Pixeldrain (only if API key is provided)
+  if (process.env.PIXELDRAIN_API_KEY) {
+    try {
+      console.log("[Storage] Attempting to upload to Pixeldrain...");
+      return await uploadToPixeldrain(buffer, filename);
+    } catch (err) {
+      console.error("[Storage] Pixeldrain upload failed:", err);
+    }
   }
 
-  // 4. Try Catbox as fallback
+  // 4. Try Catbox (only if userhash is provided)
+  if (process.env.CATBOX_USERHASH) {
+    try {
+      console.log("[Storage] Attempting to upload to Catbox...");
+      return await uploadToCatbox(buffer, filename, mimeType);
+    } catch (err) {
+      console.error("[Storage] Catbox upload failed:", err);
+    }
+  }
+
+  // 5. Fallback to Local storage (always works)
   try {
-    console.log("[Storage] Attempting to upload to Catbox...");
-    return await uploadToCatbox(buffer, filename, mimeType);
+    console.log("[Storage] Falling back to local storage...");
+    return await saveToLocal(buffer, filename);
   } catch (err) {
-    console.error("[Storage] Catbox upload failed:", err);
-    throw new Error("All cloud storage uploads failed.");
+    console.error("[Storage] Local storage save failed:", err);
+    throw new Error("Failed to save file to any storage provider.");
   }
 }
 
@@ -311,7 +330,7 @@ router.put(
       const contentType = req.headers["content-type"] || "image/png";
 
       console.log(`[Storage] Received upload buffer for ${filename} (${buffer.length} bytes)`);
-      const imageUrl = await uploadToCloud(buffer, filename, contentType);
+      const imageUrl = await uploadToStorage(buffer, filename, contentType);
       console.log(`[Storage] Proxy uploaded to cloud successfully: ${imageUrl}`);
 
       res.json({ ok: true, imageUrl });
