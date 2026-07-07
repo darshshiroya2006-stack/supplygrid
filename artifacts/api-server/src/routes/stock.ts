@@ -341,17 +341,6 @@ router.post("/", requireAdmin, async (req, res) => {
       })
       .returning();
     resolvedProductId = newProduct.id;
-  } else if (vendorId && resolvedProductId && b.unit && b.unit !== "KG") {
-    // Sync unit/conversion metadata onto existing product if the entry specifies a non-KG unit
-    await db
-      .update(productsTable)
-      .set({
-        unit: b.unit,
-        mainUnit: b.mainUnit ?? null,
-        subUnit: b.subUnit ?? null,
-        conversionFactor: b.conversionFactor ?? null,
-      })
-      .where(eq(productsTable.id, resolvedProductId));
   }
 
   const [created] = await db
