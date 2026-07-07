@@ -94,7 +94,18 @@ export function useUpload(options: UseUploadOptions = {}) {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to upload file to storage");
+        let errMessage = `HTTP error ${response.status}`;
+        try {
+          const errData = await response.json();
+          errMessage = errData.error || errMessage;
+        } catch {
+          try {
+            const errText = await response.text();
+            if (errText) errMessage = errText;
+          } catch {}
+        }
+        console.error(`[Upload Error] Server returned error during PUT:`, errMessage);
+        throw new Error(errMessage);
       }
       return response.json().catch(() => ({}));
     },

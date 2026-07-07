@@ -11,23 +11,47 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+export let objectStorageClient: Storage;
+
+if (process.env.REPL_ID) {
+  objectStorageClient = new Storage({
+    credentials: {
+      audience: "replit",
+      subject_token_type: "access_token",
+      token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+      type: "external_account",
+      credential_source: {
+        url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+        format: {
+          type: "json",
+          subject_token_field_name: "access_token",
+        },
       },
+      universe_domain: "googleapis.com",
     },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+    projectId: "",
+  });
+} else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  const credentialPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  let credentialsJson;
+  try {
+    credentialsJson = JSON.parse(credentialPath);
+  } catch {
+    credentialsJson = undefined;
+  }
+
+  if (credentialsJson) {
+    objectStorageClient = new Storage({
+      credentials: credentialsJson,
+    });
+  } else {
+    objectStorageClient = new Storage({
+      keyFilename: credentialPath,
+    });
+  }
+} else {
+  objectStorageClient = new Storage();
+}
 
 export class ObjectNotFoundError extends Error {
   constructor() {

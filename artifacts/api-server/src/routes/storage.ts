@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import express, { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import fs from "fs";
 import path from "path";
@@ -7,7 +7,7 @@ import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
-import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { ObjectStorageService, ObjectNotFoundError, objectStorageClient } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
 
 const router: IRouter = Router();
@@ -185,8 +185,43 @@ async function uploadToCatbox(buffer: Buffer, filename: string, mimeType: string
   return fileUrl.trim();
 }
 
+async function uploadToGCS(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  const bucketName = process.env.GCS_BUCKET;
+  if (!bucketName) {
+    throw new Error("GCS_BUCKET not configured");
+  }
+
+  const bucket = objectStorageClient.bucket(bucketName);
+  const file = bucket.file(`uploads/${filename}`);
+
+  await file.save(buffer, {
+    metadata: {
+      contentType: mimeType,
+    },
+    resumable: false,
+  });
+
+  try {
+    await file.makePublic();
+  } catch (err) {
+    console.warn("[Storage] Could not make GCS file public:", err);
+  }
+
+  return `https://storage.googleapis.com/${bucketName}/uploads/${filename}`;
+}
+
 async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
-  // 1. Try Cloudinary
+  // 1. Try GCS / Firebase Storage
+  if (process.env.GCS_BUCKET) {
+    try {
+      console.log("[Storage] Attempting to upload to GCS...");
+      return await uploadToGCS(buffer, filename, mimeType);
+    } catch (err) {
+      console.error("[Storage] GCS upload failed:", err);
+    }
+  }
+
+  // 2. Try Cloudinary
   if (process.env.CLOUDINARY_URL) {
     try {
       console.log("[Storage] Attempting to upload to Cloudinary...");
@@ -196,7 +231,7 @@ async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string)
     }
   }
 
-  // 2. Try Pixeldrain
+  // 3. Try Pixeldrain
   try {
     console.log("[Storage] Attempting to upload to Pixeldrain...");
     return await uploadToPixeldrain(buffer, filename);
@@ -204,7 +239,7 @@ async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string)
     console.error("[Storage] Pixeldrain upload failed:", err);
   }
 
-  // 3. Try Catbox as fallback
+  // 4. Try Catbox as fallback
   try {
     console.log("[Storage] Attempting to upload to Catbox...");
     return await uploadToCatbox(buffer, filename, mimeType);
@@ -219,25 +254,22 @@ async function uploadToCloud(buffer: Buffer, filename: string, mimeType: string)
  *
  * Direct file upload endpoint proxying to Cloud Storage.
  */
-router.put("/storage/local-upload/:filename", (req: Request, res: Response) => {
-  const rawFilename = req.params.filename;
-  const filename = Array.isArray(rawFilename) ? rawFilename[0] : rawFilename;
-  const contentType = req.headers["content-type"] || "image/png";
-
-  const chunks: Buffer[] = [];
-  req.on("data", (chunk) => {
-    chunks.push(chunk);
-  });
-
-  req.on("end", async () => {
+router.put(
+  "/storage/local-upload/:filename",
+  express.raw({ type: "*/*", limit: "20mb" }),
+  async (req: Request, res: Response) => {
     try {
-      const buffer = Buffer.concat(chunks);
-      if (buffer.length === 0) {
+      const buffer = req.body as Buffer;
+      if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
         res.status(400).json({ error: "Empty file body" });
         return;
       }
 
-      console.log(`[Storage] Received upload stream for ${filename} (${buffer.length} bytes)`);
+      const rawFilename = req.params.filename;
+      const filename = Array.isArray(rawFilename) ? rawFilename[0] : rawFilename;
+      const contentType = req.headers["content-type"] || "image/png";
+
+      console.log(`[Storage] Received upload buffer for ${filename} (${buffer.length} bytes)`);
       const imageUrl = await uploadToCloud(buffer, filename, contentType);
       console.log(`[Storage] Proxy uploaded to cloud successfully: ${imageUrl}`);
 
@@ -246,13 +278,8 @@ router.put("/storage/local-upload/:filename", (req: Request, res: Response) => {
       req.log.error({ err }, "Cloud proxy upload failed");
       res.status(500).json({ error: err.message || "Failed to upload file to cloud" });
     }
-  });
-
-  req.on("error", (err) => {
-    req.log.error({ err }, "Local upload read stream failed");
-    res.status(500).json({ error: "Stream error during local upload" });
-  });
-});
+  }
+);
 
 /**
  * GET /storage/objects/*
