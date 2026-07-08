@@ -85,17 +85,16 @@ export default function AdminProducts() {
   });
 
   const stockBoxes = form.watch("stockBoxes");
-  const stockPackets = form.watch("stockPackets");
   const formConversionFactor = form.watch("conversionFactor");
   const unitType = form.watch("unit");
 
   useEffect(() => {
     if (unitType === "Unit") {
       const cf = Number(formConversionFactor) || 0;
-      const total = (Number(stockBoxes) || 0) * cf + (Number(stockPackets) || 0);
+      const total = (Number(stockBoxes) || 0) * cf;
       form.setValue("availableStock", total);
     }
-  }, [stockBoxes, stockPackets, formConversionFactor, unitType, form]);
+  }, [stockBoxes, formConversionFactor, unitType, form]);
 
   const currentImageUrl = form.watch("imageUrl");
   const imageSrc = productImageSrc(currentImageUrl);
@@ -129,10 +128,8 @@ export default function AdminProducts() {
 
   const openEditDialog = (product: Product) => {
     let initialBoxes = null;
-    let initialPackets = null;
     if (product.conversionFactor && product.conversionFactor > 0) {
       initialBoxes = Math.floor((product.availableStock ?? 0) / product.conversionFactor);
-      initialPackets = (product.availableStock ?? 0) % product.conversionFactor;
     }
 
     const normalizedUnit = (product.unit && product.unit.toLowerCase().includes("kg")) ? "KG" : "Unit";
@@ -145,12 +142,12 @@ export default function AdminProducts() {
       basePrice: product.basePrice,
       imageUrl: product.imageUrl ?? null,
       inStock: product.inStock,
-      mainUnit: product.mainUnit ?? "",
-      subUnit: product.subUnit ?? "",
+      mainUnit: product.mainUnit ?? "Boxes",
+      subUnit: product.subUnit ?? "Packets",
       conversionFactor: product.conversionFactor ?? null,
       availableStock: product.availableStock ?? 0,
       stockBoxes: initialBoxes,
-      stockPackets: initialPackets,
+      stockPackets: null,
     });
     setEditingProduct(product);
     setIsDialogOpen(true);
@@ -162,6 +159,9 @@ export default function AdminProducts() {
       data.mainUnit = null;
       data.subUnit = null;
       data.conversionFactor = null;
+    } else if (data.unit === "Unit") {
+      data.mainUnit = "Boxes";
+      data.subUnit = "Packets";
     }
     const payload = { ...data, imageUrl: data.imageUrl || null };
     if (editingProduct) {
@@ -309,9 +309,11 @@ export default function AdminProducts() {
                   const isOutOfStock = stock <= 0;
                   const isLowStock = stock > 0 && stock < 15;
 
-                  const hasConversion = product.conversionFactor && product.conversionFactor > 0;
-                  const boxesLeft = hasConversion ? Math.floor(stock / product.conversionFactor!) : 0;
-                  const packetsLeft = hasConversion ? stock % product.conversionFactor! : 0;
+                  const isUnitBased = (product.unit && product.unit.toLowerCase().includes("unit"));
+                  const convFactor = product.conversionFactor && product.conversionFactor > 0 ? product.conversionFactor : (isUnitBased ? 30 : 1);
+                  const hasConversion = isUnitBased || (product.conversionFactor && product.conversionFactor > 0);
+                  const boxesLeft = Math.floor(stock / convFactor);
+                  const packetsLeft = stock % convFactor;
                   const mainUnitName = (product.mainUnit && isNaN(Number(product.mainUnit))) ? product.mainUnit : "Boxes";
                   const subUnitName = (product.subUnit && isNaN(Number(product.subUnit))) ? product.subUnit : "Packets";
 
@@ -459,7 +461,7 @@ export default function AdminProducts() {
                   name="unit"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Unit</FormLabel>
+                      <FormLabel>Unit Type</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value || "KG"}>
                         <FormControl>
                           <SelectTrigger>
@@ -491,105 +493,65 @@ export default function AdminProducts() {
                 />
               </div>
  
-              {unitType === "Unit" && (
-                /* Bulk to Loose Conversion Options */
-                <div className="border-t pt-4 mt-4 space-y-4">
-                  <h4 className="text-sm font-semibold text-foreground">Bulk to Loose Conversion</h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="mainUnit"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Main Unit Name</FormLabel>
-                          <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Box" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="subUnit"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Sub-Unit Name</FormLabel>
-                          <FormControl><Input {...field} value={field.value || ""} placeholder="e.g. Packet" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="conversionFactor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Conversion Factor</FormLabel>
-                          <FormControl><Input type="number" {...field} value={field.value || ""} placeholder="e.g. 30" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+              {unitType === "Unit" ? (
+                <div className="grid grid-cols-3 gap-4 border-t pt-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name="stockBoxes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Main Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 5" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="conversionFactor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sub-Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 30" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="availableStock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Sub-Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ""} disabled className="bg-muted/50 cursor-not-allowed" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 border-t pt-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name="availableStock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quantity (KG)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.1" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               )}
- 
-              {/* Stock Input Fields */}
-              <div className="border-t pt-4 mt-4 space-y-4">
-                <h4 className="text-sm font-semibold text-foreground">Stock Management</h4>
-                {unitType === "Unit" ? (
-                  <>
-                    <div className="grid grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="stockBoxes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Current Stock (Boxes)</FormLabel>
-                            <FormControl><Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 5" /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="stockPackets"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Current Stock (Loose Packets)</FormLabel>
-                            <FormControl><Input type="number" {...field} value={field.value ?? ""} placeholder="e.g. 0" /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="availableStock"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Total Stock (Sub-Units)</FormLabel>
-                            <FormControl><Input type="number" {...field} value={field.value ?? ""} disabled className="bg-muted/50 cursor-not-allowed" /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="availableStock"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Available Stock (KG)</FormLabel>
-                          <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
-              </div>
 
 
 

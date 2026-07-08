@@ -1153,9 +1153,9 @@ export default function AdminIndex() {
                 <TableHeader>
                   <TableRow className="bg-muted/40">
                     <TableHead className="pl-6 font-semibold">Product Name</TableHead>
-                    <TableHead className="text-right font-semibold">Opening Stock (KG)</TableHead>
-                    <TableHead className="text-right font-semibold">Purchased (KG)</TableHead>
-                    <TableHead className="text-right font-semibold">Sold (KG)</TableHead>
+                    <TableHead className="text-right font-semibold">Opening Stock</TableHead>
+                    <TableHead className="text-right font-semibold">Purchased</TableHead>
+                    <TableHead className="text-right font-semibold">Sold</TableHead>
                     <TableHead className="text-right font-semibold pr-6">Current Stock</TableHead>
                   </TableRow>
                 </TableHeader>

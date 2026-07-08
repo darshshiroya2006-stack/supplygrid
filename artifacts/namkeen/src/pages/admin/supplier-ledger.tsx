@@ -289,7 +289,7 @@ export default function AdminSupplierLedger() {
       );
     } else {
       createEntry.mutate(
-        { data },
+        { data: payload },
         {
           onSuccess: () => {
             toast.success("Purchase entry added");
