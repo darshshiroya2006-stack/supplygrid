@@ -1164,10 +1164,18 @@ export default function AdminIndex() {
                     const isOutOfStock = row.closingKg <= 0;
                     const hasConversion = row.conversionFactor && row.conversionFactor > 0;
                     const boxesLeft = hasConversion ? Math.floor(row.closingKg / row.conversionFactor) : 0;
-                    const packetsLeft = hasConversion ? row.closingKg % row.conversionFactor : 0;
-                    const mainUnitName = (row.mainUnit && isNaN(Number(row.mainUnit))) ? row.mainUnit : "Boxes";
-                    const subUnitName = (row.subUnit && isNaN(Number(row.subUnit))) ? row.subUnit : "Packets";
-                    const suffix = hasConversion ? ` ${subUnitName}` : " KG";
+                    const packetsLeft = hasConversion ? Math.round(row.closingKg % row.conversionFactor) : 0;
+                    const mainUnitName = (row.mainUnit && isNaN(Number(row.mainUnit))) ? row.mainUnit : "Main Unit";
+                    const subUnitName = (row.subUnit && isNaN(Number(row.subUnit))) ? row.subUnit : "Sub-Unit";
+
+                    const formatInventory = (qty: number) => {
+                      if (hasConversion) {
+                        const boxes = Math.floor(qty / row.conversionFactor);
+                        const packets = Math.round(qty % row.conversionFactor);
+                        return `${boxes} ${mainUnitName}, ${packets} ${subUnitName}`;
+                      }
+                      return `${qty.toLocaleString("en-IN", { maximumFractionDigits: 2 })} KG`;
+                    };
 
                     const displayVal = hasConversion
                       ? `${boxesLeft} ${mainUnitName}, ${packetsLeft} ${subUnitName} Left`
@@ -1177,13 +1185,13 @@ export default function AdminIndex() {
                       <TableRow key={row.productName} className="hover:bg-muted/10 transition-colors">
                         <TableCell className="pl-6 font-medium text-foreground">{row.productName}</TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.openingStockKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}{suffix}
+                          {formatInventory(row.openingStockKg)}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.purchasedKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}{suffix}
+                          {formatInventory(row.purchasedKg)}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.soldKg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}{suffix}
+                          {formatInventory(row.soldKg)}
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           {row.closingKg <= 0 ? (

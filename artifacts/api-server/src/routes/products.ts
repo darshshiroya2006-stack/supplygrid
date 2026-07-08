@@ -74,15 +74,19 @@ router.get("/", async (req, res) => {
   );
 });
 
-async function getAvailableStock(productId: number): Promise<number> {
-
-  const [row] = await db
+export async function syncProductStock(productId: number, tx: any = db): Promise<number> {
+  const [row] = await tx
     .select({
-      totalStock: sql<string>`coalesce(sum(case when ${stockEntriesTable.orderId} is null then ${stockEntriesTable.quantityKg} else 0 end), 0) - coalesce(sum(case when ${stockEntriesTable.orderId} is not null then abs(${stockEntriesTable.quantityKg}) else 0 end), 0)`,
+      totalStock: sql<string>`coalesce(sum(case when ${stockEntriesTable.orderId} is null then ${stockEntriesTable.quantityKg}::float8 else 0 end), 0) - coalesce(sum(case when ${stockEntriesTable.orderId} is not null then abs(${stockEntriesTable.quantityKg}::float8) else 0 end), 0)`,
     })
     .from(stockEntriesTable)
     .where(eq(stockEntriesTable.productId, productId));
-  return Number(row?.totalStock || 0);
+  const total = Number(row?.totalStock || 0);
+  await tx
+    .update(productsTable)
+    .set({ availableStock: total })
+    .where(eq(productsTable.id, productId));
+  return total;
 }
 
 router.post("/", requireAdmin, async (req, res) => {

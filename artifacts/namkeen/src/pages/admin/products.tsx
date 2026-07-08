@@ -142,8 +142,8 @@ export default function AdminProducts() {
       basePrice: product.basePrice,
       imageUrl: product.imageUrl ?? null,
       inStock: product.inStock,
-      mainUnit: product.mainUnit ?? "Boxes",
-      subUnit: product.subUnit ?? "Packets",
+      mainUnit: product.mainUnit ?? "Main Unit",
+      subUnit: product.subUnit ?? "Sub-Unit",
       conversionFactor: product.conversionFactor ?? null,
       availableStock: product.availableStock ?? 0,
       stockBoxes: initialBoxes,
@@ -160,8 +160,8 @@ export default function AdminProducts() {
       data.subUnit = null;
       data.conversionFactor = null;
     } else if (data.unit === "Unit") {
-      data.mainUnit = "Boxes";
-      data.subUnit = "Packets";
+      data.mainUnit = "Main Unit";
+      data.subUnit = "Sub-Unit";
     }
     const payload = { ...data, imageUrl: data.imageUrl || null };
     if (editingProduct) {
@@ -314,8 +314,8 @@ export default function AdminProducts() {
                   const hasConversion = isUnitBased || (product.conversionFactor && product.conversionFactor > 0);
                   const boxesLeft = Math.floor(stock / convFactor);
                   const packetsLeft = stock % convFactor;
-                  const mainUnitName = (product.mainUnit && isNaN(Number(product.mainUnit))) ? product.mainUnit : "Boxes";
-                  const subUnitName = (product.subUnit && isNaN(Number(product.subUnit))) ? product.subUnit : "Packets";
+                  const mainUnitName = (product.mainUnit && isNaN(Number(product.mainUnit))) ? product.mainUnit : "Main Unit";
+                  const subUnitName = (product.subUnit && isNaN(Number(product.subUnit))) ? product.subUnit : "Sub-Unit";
 
                   let badgeClass = "";
                   let statusLabel = "";

@@ -265,8 +265,8 @@ export default function AdminSupplierLedger() {
     const payload = {
       ...data,
       unit,
-      mainUnit: unit === "Unit" ? "Box" : null,
-      subUnit: unit === "Unit" ? "Packet" : null,
+      mainUnit: unit === "Unit" ? "Main Unit" : null,
+      subUnit: unit === "Unit" ? "Sub-Unit" : null,
       conversionFactor: unit === "Unit" ? Number(packetsPurchased) : null,
     };
     if (editingEntry) {
@@ -557,25 +557,32 @@ export default function AdminSupplierLedger() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Product Name</TableHead>
-                  <TableHead className="text-right">Quantity (KG)</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
                   <TableHead className="text-right">Total Price</TableHead>
                   <TableHead>Payment Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEntries?.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>
-                      <div className="flex items-center text-sm">
-                        <Calendar className="w-3 h-3 mr-2 text-muted-foreground" />
-                        {entry.date}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">{entry.productName}</TableCell>
-                    <TableCell className="text-right font-medium">{entry.quantityKg}</TableCell>
-                    <TableCell className="text-right font-medium">₹{entry.totalPrice.toLocaleString()}</TableCell>
-                    <TableCell>{renderPaymentStatus(entry)}</TableCell>
+                {filteredEntries?.map((entry) => {
+                  const prod = products?.find(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase());
+                  const isUnit = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
+                  const cf = prod?.conversionFactor || 30;
+                  const boxes = Math.floor(entry.quantityKg / cf);
+                  const displayQty = isUnit ? `${boxes} ${prod?.mainUnit || "Main Unit"}` : `${entry.quantityKg} KG`;
+
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <div className="flex items-center text-sm">
+                          <Calendar className="w-3 h-3 mr-2 text-muted-foreground" />
+                          {entry.date}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">{entry.productName}</TableCell>
+                      <TableCell className="text-right font-medium">{displayQty}</TableCell>
+                      <TableCell className="text-right font-medium">₹{entry.totalPrice.toLocaleString()}</TableCell>
+                      <TableCell>{renderPaymentStatus(entry)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -599,7 +606,8 @@ export default function AdminSupplierLedger() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {filteredEntries?.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">

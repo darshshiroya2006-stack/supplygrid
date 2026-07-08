@@ -3,6 +3,7 @@ import { desc, eq, sql, and } from "drizzle-orm";
 import { db, stockEntriesTable, suppliersTable, productsTable } from "@workspace/db";
 import { CreateStockEntryBody, UpdateStockEntryBody } from "@workspace/api-zod";
 import { requireAdmin } from "../lib/session";
+import { syncProductStock } from "./products";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -358,6 +359,11 @@ router.post("/", requireAdmin, async (req, res) => {
       vendorId,
     })
     .returning();
+
+  if (resolvedProductId) {
+    await syncProductStock(resolvedProductId);
+  }
+
   res.status(201).json(toEntry(created));
 });
 
@@ -435,6 +441,13 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     .where(and(eq(stockEntriesTable.id, id), vendorCond))
     .returning();
 
+  if (existing.productId) {
+    await syncProductStock(existing.productId);
+  }
+  if (updated.productId && updated.productId !== existing.productId) {
+    await syncProductStock(updated.productId);
+  }
+
   res.json(toEntry(updated));
 });
 
@@ -488,7 +501,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
     : sql`1=1`;
 
   const [existing] = await db
-    .select({ id: stockEntriesTable.id })
+    .select({ id: stockEntriesTable.id, productId: stockEntriesTable.productId })
     .from(stockEntriesTable)
     .where(and(eq(stockEntriesTable.id, id), vendorCond))
     .limit(1);
@@ -499,6 +512,11 @@ router.delete("/:id", requireAdmin, async (req, res) => {
   }
 
   await db.delete(stockEntriesTable).where(eq(stockEntriesTable.id, id));
+
+  if (existing.productId) {
+    await syncProductStock(existing.productId);
+  }
+
   res.json({ ok: true });
 });
 

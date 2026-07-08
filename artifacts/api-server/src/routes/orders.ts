@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { CreateOrderBody } from "@workspace/api-zod";
 import { requireAdmin, requireAuth, requireCustomer } from "../lib/session";
+import { syncProductStock } from "./products";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -453,6 +454,7 @@ router.patch("/:id/print", requireAdmin, async (req, res) => {
             orderId: id,
             vendorId: existing.vendorId,
           });
+          await syncProductStock(item.productId, tx);
         }
       }
 
@@ -611,6 +613,11 @@ router.patch("/:id", requireAdmin, async (req, res) => {
         .limit(1);
       if (!order) return { status: 404, message: "Order not found" };
 
+      const oldItems = await tx
+        .select({ productId: orderItemsTable.productId })
+        .from(orderItemsTable)
+        .where(eq(orderItemsTable.orderId, id));
+
       await tx.delete(orderItemsTable).where(eq(orderItemsTable.orderId, id));
 
       let subtotal = 0;
@@ -673,6 +680,15 @@ router.patch("/:id", requireAdmin, async (req, res) => {
         }
       }
 
+      // Sync product stocks
+      const affectedProductIds = new Set([
+        ...oldItems.map((it) => it.productId),
+        ...newItems.map((it) => it.productId),
+      ]);
+      for (const pId of affectedProductIds) {
+        await syncProductStock(pId, tx);
+      }
+
       const [updated] = await tx
         .update(ordersTable)
         .set({
@@ -721,8 +737,17 @@ router.delete("/:id", requireAdmin, async (req, res) => {
 
       const affectedVendorId = orderToDelete.vendorId;
 
+      const items = await tx
+        .select({ productId: orderItemsTable.productId })
+        .from(orderItemsTable)
+        .where(eq(orderItemsTable.orderId, id));
+
       // Delete the order (stock entries and items cascade delete)
       await tx.delete(ordersTable).where(eq(ordersTable.id, id));
+
+      for (const item of items) {
+        await syncProductStock(item.productId, tx);
+      }
 
       if (affectedVendorId) {
         // Re-sequence ONLY this vendor's orders per billing type — isolated from other vendors
