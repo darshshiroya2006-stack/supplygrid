@@ -142,8 +142,8 @@ export default function AdminProducts() {
       basePrice: product.basePrice,
       imageUrl: product.imageUrl ?? null,
       inStock: product.inStock,
-      mainUnit: product.mainUnit ?? "Main Unit",
-      subUnit: product.subUnit ?? "Sub-Unit",
+      mainUnit: (product.mainUnit === "Boxes" || product.mainUnit === "Box") ? "Main Unit" : (product.mainUnit ?? "Main Unit"),
+      subUnit: (product.subUnit === "Packets" || product.subUnit === "Packet") ? "Sub-Unit" : (product.subUnit ?? "Sub-Unit"),
       conversionFactor: product.conversionFactor ?? null,
       availableStock: product.availableStock ?? 0,
       stockBoxes: initialBoxes,
@@ -310,12 +310,16 @@ export default function AdminProducts() {
                   const isLowStock = stock > 0 && stock < 15;
 
                   const isUnitBased = (product.unit && product.unit.toLowerCase().includes("unit"));
-                  const convFactor = product.conversionFactor && product.conversionFactor > 0 ? product.conversionFactor : (isUnitBased ? 30 : 1);
-                  const hasConversion = isUnitBased || (product.conversionFactor && product.conversionFactor > 0);
+                  const convFactor = product.conversionFactor && product.conversionFactor > 0 ? product.conversionFactor : 30;
+                  const hasConversion = isUnitBased;
                   const boxesLeft = Math.floor(stock / convFactor);
                   const packetsLeft = stock % convFactor;
-                  const mainUnitName = (product.mainUnit && isNaN(Number(product.mainUnit))) ? product.mainUnit : "Main Unit";
-                  const subUnitName = (product.subUnit && isNaN(Number(product.subUnit))) ? product.subUnit : "Sub-Unit";
+                  
+                  let mainUnitName = (product.mainUnit && isNaN(Number(product.mainUnit))) ? product.mainUnit : "Main Unit";
+                  if (mainUnitName === "Boxes" || mainUnitName === "Box") mainUnitName = "Main Unit";
+                  
+                  let subUnitName = (product.subUnit && isNaN(Number(product.subUnit))) ? product.subUnit : "Sub-Unit";
+                  if (subUnitName === "Packets" || subUnitName === "Packet") subUnitName = "Sub-Unit";
 
                   let badgeClass = "";
                   let statusLabel = "";

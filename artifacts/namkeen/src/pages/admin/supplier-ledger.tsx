@@ -569,7 +569,11 @@ export default function AdminSupplierLedger() {
                   const isUnit = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
                   const cf = prod?.conversionFactor || 30;
                   const boxes = Math.floor(entry.quantityKg / cf);
-                  const displayQty = isUnit ? `${boxes} ${prod?.mainUnit || "Main Unit"}` : `${entry.quantityKg} KG`;
+                  
+                  let mainUnitName = prod?.mainUnit || "Main Unit";
+                  if (mainUnitName === "Boxes" || mainUnitName === "Box") mainUnitName = "Main Unit";
+                  
+                  const displayQty = isUnit ? `${boxes} ${mainUnitName}` : `${entry.quantityKg} KG`;
 
                   return (
                     <TableRow key={entry.id}>

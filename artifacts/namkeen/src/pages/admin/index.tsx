@@ -1162,11 +1162,16 @@ export default function AdminIndex() {
                 <TableBody>
                   {filteredLedger.map((row: any) => {
                     const isOutOfStock = row.closingKg <= 0;
-                    const hasConversion = row.conversionFactor && row.conversionFactor > 0;
+                    const isUnitBased = (row.unit && row.unit.toLowerCase().includes("unit"));
+                    const hasConversion = isUnitBased && row.conversionFactor && row.conversionFactor > 0;
                     const boxesLeft = hasConversion ? Math.floor(row.closingKg / row.conversionFactor) : 0;
                     const packetsLeft = hasConversion ? Math.round(row.closingKg % row.conversionFactor) : 0;
-                    const mainUnitName = (row.mainUnit && isNaN(Number(row.mainUnit))) ? row.mainUnit : "Main Unit";
-                    const subUnitName = (row.subUnit && isNaN(Number(row.subUnit))) ? row.subUnit : "Sub-Unit";
+                    
+                    let mainUnitName = (row.mainUnit && isNaN(Number(row.mainUnit))) ? row.mainUnit : "Main Unit";
+                    if (mainUnitName === "Boxes" || mainUnitName === "Box") mainUnitName = "Main Unit";
+                    
+                    let subUnitName = (row.subUnit && isNaN(Number(row.subUnit))) ? row.subUnit : "Sub-Unit";
+                    if (subUnitName === "Packets" || subUnitName === "Packet") subUnitName = "Sub-Unit";
 
                     const formatInventory = (qty: number) => {
                       if (hasConversion) {

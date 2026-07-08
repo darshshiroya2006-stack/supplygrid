@@ -390,6 +390,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
       SELECT
         p.id   AS product_id,
         p.name AS product_name,
+        p.unit AS unit,
         p.main_unit AS main_unit,
         p.sub_unit AS sub_unit,
         p.conversion_factor AS conversion_factor,
@@ -429,6 +430,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
     type LedgerRow = {
       product_id: number;
       product_name: string;
+      unit: string;
       main_unit: string | null;
       sub_unit: string | null;
       conversion_factor: number | null;
@@ -578,6 +580,7 @@ router.get("/analytics", requireAdmin, async (req, res) => {
       const closing = Math.max(0, opening + purchased - sold);
       return {
         productName: r.product_name,
+        unit: r.unit,
         openingStockKg: opening,
         purchasedKg: purchased,
         soldKg: sold,
