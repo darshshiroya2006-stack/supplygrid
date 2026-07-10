@@ -228,23 +228,31 @@ export default function AdminProducts() {
     setIsUploading(true);
     setProgress(20);
     try {
+      const imgbbApiKey = import.meta.env.VITE_IMGBB_API_KEY || "YOUR_FREE_API_KEY";
+      
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("image", file);
 
       setProgress(50);
-      const response = await fetch(`${STORAGE_BASE}/upload`, {
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Upload failed");
+        throw new Error(errData.error?.message || `HTTP ${response.status} failed`);
       }
 
       setProgress(80);
-      const data = await response.json();
-      form.setValue("imageUrl", data.imageUrl, { shouldDirty: true });
+      const resData = await response.json();
+      
+      if (!resData.success || !resData.data?.url) {
+        throw new Error(resData.error?.message || "ImgBB upload was unsuccessful");
+      }
+
+      const absoluteUrl = resData.data.url;
+      form.setValue("imageUrl", absoluteUrl, { shouldDirty: true });
       toast.success("Photo uploaded successfully");
     } catch (err: any) {
       console.error("[Upload Error]", err);
