@@ -22,13 +22,27 @@ const upload = multer({
 // ─── Cloud Storage Helpers ──────────────────────────────────────────────────
 
 async function uploadToCloudinary(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  let apiKey = process.env.CLOUDINARY_API_KEY;
+  let apiSecret = process.env.CLOUDINARY_API_SECRET;
+  let cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
   const cloudinaryUrl = process.env.CLOUDINARY_URL;
-  if (!cloudinaryUrl) throw new Error("CLOUDINARY_URL not configured");
+  if (cloudinaryUrl) {
+    const match = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+    if (match) {
+      apiKey = apiKey || match[1];
+      apiSecret = apiSecret || match[2];
+      cloudName = cloudName || match[3];
+    }
+  }
 
-  const match = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
-  if (!match) throw new Error("Invalid CLOUDINARY_URL format");
+  if (!apiKey || !apiSecret || !cloudName) {
+    throw new Error(
+      `Cloudinary configuration missing. Required: CLOUDINARY_URL or (CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME). Present: ` +
+      `URL=${!!cloudinaryUrl}, API_KEY=${!!apiKey}, API_SECRET=${!!apiSecret}, CLOUD_NAME=${!!cloudName}`
+    );
+  }
 
-  const [, apiKey, apiSecret, cloudName] = match;
   const timestamp = Math.round(Date.now() / 1000);
   
   const crypto = await import("crypto");
@@ -54,7 +68,7 @@ async function uploadToCloudinary(buffer: Buffer, filename: string, mimeType: st
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Cloudinary upload failed: ${errText}`);
+    throw new Error(`Cloudinary upload HTTP ${response.status} failed: ${errText}`);
   }
 
   const resData = await response.json() as any;
@@ -84,6 +98,7 @@ router.post(
 
       res.json({ ok: true, imageUrl });
     } catch (err: any) {
+      console.error("[Storage] Cloudinary upload failed:", err);
       req.log.error({ err }, "Cloudinary upload failed");
       res.status(500).json({ error: err.message || "Failed to upload file to Cloudinary" });
     }

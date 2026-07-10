@@ -247,6 +247,7 @@ export default function AdminProducts() {
       form.setValue("imageUrl", data.imageUrl, { shouldDirty: true });
       toast.success("Photo uploaded successfully");
     } catch (err: any) {
+      console.error("[Upload Error]", err);
       toast.error(`Upload failed: ${err.message}`);
     } finally {
       setIsUploading(false);
