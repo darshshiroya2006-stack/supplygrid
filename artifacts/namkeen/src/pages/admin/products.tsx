@@ -16,7 +16,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Product } from "@workspace/api-client-react";
-import { useUpload } from "@workspace/object-storage-web";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,16 +98,8 @@ export default function AdminProducts() {
   const currentImageUrl = form.watch("imageUrl");
   const imageSrc = productImageSrc(currentImageUrl);
 
-  const { uploadFile, isUploading, progress } = useUpload({
-    basePath: STORAGE_BASE,
-    onSuccess: (res) => {
-      form.setValue("imageUrl", res.objectPath, { shouldDirty: true });
-      toast.success("Photo uploaded");
-    },
-    onError: (err) => {
-      toast.error(`Upload failed: ${err.message}`);
-    },
-  });
+  const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const filteredProducts = products?.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -233,7 +224,35 @@ export default function AdminProducts() {
       toast.error("Please select an image file (JPG, PNG, WebP, etc.)");
       return;
     }
-    await uploadFile(file);
+
+    setIsUploading(true);
+    setProgress(20);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setProgress(50);
+      const response = await fetch(`${STORAGE_BASE}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Upload failed");
+      }
+
+      setProgress(80);
+      const data = await response.json();
+      form.setValue("imageUrl", data.imageUrl, { shouldDirty: true });
+      toast.success("Photo uploaded successfully");
+    } catch (err: any) {
+      toast.error(`Upload failed: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+      setProgress(100);
+    }
+
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
