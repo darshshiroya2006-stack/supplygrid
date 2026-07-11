@@ -144,7 +144,9 @@ export default function Login() {
         toast.success("Logged in successfully");
         queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
         
-        if (session.role === 'admin' || session.role === 'wholesaler') {
+        if (session.role === 'super_admin') {
+          setLocation("/super-admin");
+        } else if (session.role === 'admin' || session.role === 'wholesaler') {
           setLocation("/admin");
         } else {
           // Retailers go to their multi-wholesaler selection dashboard

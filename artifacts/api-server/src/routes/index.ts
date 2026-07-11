@@ -10,6 +10,8 @@ import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
 import wholesalerRouter from "./wholesaler";
 import retailerRouter from "./retailer";
+import superAdminRouter from "./superAdmin";
+import subAccountsRouter from "./subAccounts";
 
 const router: IRouter = Router();
 
@@ -24,5 +26,7 @@ router.use("/dashboard", dashboardRouter);
 router.use("/wholesaler", wholesalerRouter);
 router.use("/retailer", retailerRouter);
 router.use(storageRouter);
+router.use(superAdminRouter);
+router.use(subAccountsRouter);
 
 export default router;

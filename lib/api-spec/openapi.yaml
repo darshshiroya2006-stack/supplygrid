@@ -817,7 +817,7 @@ components:
           type: boolean
         role:
           type: string
-          enum: [admin, wholesaler, retailer, customer, guest]
+          enum: [admin, wholesaler, retailer, customer, guest, super_admin]
         userId:
           type: integer
           nullable: true

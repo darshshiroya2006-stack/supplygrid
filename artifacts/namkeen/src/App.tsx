@@ -8,6 +8,7 @@ import Login from "@/pages/login";
 import SignupWholesaler from "@/pages/signup-wholesaler";
 import SignupRetailer from "@/pages/signup-retailer";
 import RetailerDashboard from "@/pages/retailer-dashboard";
+import SuperAdminDashboard from "@/pages/super-admin";
 import NotFound from "@/pages/not-found";
 
 // Shop pages
@@ -39,6 +40,7 @@ function Router() {
       <Route path="/signup/wholesaler" component={SignupWholesaler} />
       <Route path="/signup/retailer" component={SignupRetailer} />
       <Route path="/retailer" component={RetailerDashboard} />
+      <Route path="/super-admin" component={SuperAdminDashboard} />
       
       {/* Shop Routes */}
       <Route path="/shop" component={ShopIndex} />

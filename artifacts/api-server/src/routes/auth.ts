@@ -52,13 +52,28 @@ router.post("/login", async (req, res) => {
     const [existingAdmin] = await db.select().from(adminsTable).where(eq(adminsTable.username, "admin")).limit(1);
     if (!existingAdmin) {
       const hash = bcrypt.hashSync("admin", 10);
-      await db.insert(adminsTable).values({ username: "admin", passwordHash: hash, name: "Darsh Shiroya" });
+      await db.insert(adminsTable).values({
+        username: "admin",
+        passwordHash: hash,
+        name: "Darsh Shiroya",
+        role: "super_admin",
+        status: "ACTIVE"
+      });
+    } else if (existingAdmin.role !== "super_admin" || existingAdmin.status !== "ACTIVE") {
+      await db.update(adminsTable)
+        .set({ role: "super_admin", status: "ACTIVE" })
+        .where(eq(adminsTable.id, existingAdmin.id));
     }
   }
 
   // Try wholesaler/admin table first
   const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.username, username)).limit(1);
   if (admin && bcrypt.compareSync(password, admin.passwordHash)) {
+    if (admin.role === "wholesaler" && admin.status === "PENDING") {
+      res.status(403).json({ message: "તમારું એકાઉન્ટ હજી સુપર એડમિનના અપ્રુવલ માટે બાકી છે!" });
+      return;
+    }
+
     req.session.role = admin.role as any;
     req.session.userId = admin.id;
     req.session.name = admin.name;
@@ -71,6 +86,7 @@ router.post("/login", async (req, res) => {
       name: admin.name,
       shopName: admin.shopName ?? null,
       uniqueVendorId: admin.uniqueVendorId ?? null,
+      status: admin.status,
       linkedWholesalers: [],
     });
     return;
@@ -132,6 +148,7 @@ router.get("/me", async (req, res) => {
       name: null,
       shopName: null,
       uniqueVendorId: null,
+      status: null,
       wholesalerShopName: null,
       linkedWholesalers: [],
     });
@@ -140,10 +157,16 @@ router.get("/me", async (req, res) => {
 
   let linkedWholesalers: Awaited<ReturnType<typeof getRetailerLinkedWholesalers>> = [];
   let wholesalerShopName: string | null = null;
+  let status: string | null = null;
 
   if ((req.session.role === "retailer" || req.session.role === "customer") && req.session.userId) {
     linkedWholesalers = await getRetailerLinkedWholesalers(req.session.userId);
     wholesalerShopName = linkedWholesalers[0]?.shopName ?? null;
+  } else if (req.session.userId) {
+    const [admin] = await db.select({ status: adminsTable.status }).from(adminsTable).where(eq(adminsTable.id, req.session.userId)).limit(1);
+    if (admin) {
+      status = admin.status;
+    }
   }
 
   res.json({
@@ -153,6 +176,7 @@ router.get("/me", async (req, res) => {
     name: req.session.name ?? null,
     shopName: req.session.shopName ?? null,
     uniqueVendorId: req.session.uniqueVendorId ?? null,
+    status,
     wholesalerShopName,
     linkedWholesalers,
   });

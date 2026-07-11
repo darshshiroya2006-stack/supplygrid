@@ -13,6 +13,7 @@ export const adminsTable = pgTable("admins", {
   address: text("address"),
   gstin: text("gstin"),
   gst_number: text("gst_number"),
+  status: text("status").default("PENDING").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

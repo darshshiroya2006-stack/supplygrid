@@ -38,6 +38,7 @@ export const AuthSessionRole = {
   retailer: 'retailer',
   customer: 'customer',
   guest: 'guest',
+  super_admin: 'super_admin',
 } as const;
 
 export interface AuthSession {

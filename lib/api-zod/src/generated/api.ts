@@ -66,7 +66,7 @@ export const LoginBody = zod.object({
 
 export const LoginResponse = zod.object({
   "authenticated": zod.boolean(),
-  "role": zod.enum(['admin', 'wholesaler', 'retailer', 'customer', 'guest']),
+  "role": zod.enum(['admin', 'wholesaler', 'retailer', 'customer', 'guest', 'super_admin']),
   "userId": zod.number().nullish(),
   "name": zod.string().nullish(),
   "shopName": zod.string().nullish(),
@@ -94,7 +94,7 @@ export const LogoutResponse = zod.object({
  */
 export const GetCurrentUserResponse = zod.object({
   "authenticated": zod.boolean(),
-  "role": zod.enum(['admin', 'wholesaler', 'retailer', 'customer', 'guest']),
+  "role": zod.enum(['admin', 'wholesaler', 'retailer', 'customer', 'guest', 'super_admin']),
   "userId": zod.number().nullish(),
   "name": zod.string().nullish(),
   "shopName": zod.string().nullish(),
