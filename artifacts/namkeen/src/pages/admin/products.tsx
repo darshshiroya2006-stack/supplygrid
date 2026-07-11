@@ -228,34 +228,32 @@ export default function AdminProducts() {
     setIsUploading(true);
     setProgress(20);
     try {
-      const imgbbApiKey = import.meta.env.VITE_IMGBB_API_KEY || "YOUR_FREE_API_KEY";
-      
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("file", file);
 
       setProgress(50);
-      const response = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, {
+      const response = await fetch(`${STORAGE_BASE}/upload`, {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `HTTP ${response.status} failed`);
+        throw new Error(errData.error || `HTTP ${response.status} failed`);
       }
 
       setProgress(80);
       const resData = await response.json();
       
-      if (!resData.success || !resData.data?.url) {
-        throw new Error(resData.error?.message || "ImgBB upload was unsuccessful");
+      if (!resData.ok || !resData.imageUrl) {
+        throw new Error(resData.error || "Upload was unsuccessful");
       }
 
-      const absoluteUrl = resData.data.url;
+      const absoluteUrl = resData.imageUrl;
       form.setValue("imageUrl", absoluteUrl, { shouldDirty: true });
       toast.success("Photo uploaded successfully");
     } catch (err: any) {
-      console.error("[Upload Error]", err);
+      console.error("FRONTEND_UPLOAD_CRASH:", err);
       toast.error(`Upload failed: ${err.message}`);
     } finally {
       setIsUploading(false);
