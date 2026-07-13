@@ -61,14 +61,12 @@ router.post(
         return;
       }
 
-      console.log(`[Storage] Uploading file to ImgBB: ${file.originalname}`);
-      const imageUrl = await uploadToImgBB(file.buffer, file.originalname, file.mimetype);
-      console.log(`[Storage] Uploaded to ImgBB successfully: ${imageUrl}`);
-
+      console.log(`[Storage] Bypassing upload for: ${file.originalname}`);
+      const imageUrl = "/assets/images/default-snack.png";
       res.json({ ok: true, imageUrl });
     } catch (error: any) {
       console.error("SERVER_UPLOAD_CRASH:", error);
-      res.status(500).json({ error: error.message || "Failed to upload file to ImgBB" });
+      res.status(500).json({ error: error.message || "Failed to bypass upload" });
     }
   }
 );

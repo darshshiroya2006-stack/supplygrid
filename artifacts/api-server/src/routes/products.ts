@@ -104,7 +104,7 @@ router.post("/", requireAdmin, async (req, res) => {
       category: b.category ?? null,
       unit: b.unit,
       basePrice: String(b.basePrice),
-      imageUrl: b.imageUrl ?? null,
+      imageUrl: b.imageUrl || "/assets/images/default-snack.png",
       inStock: b.inStock ?? true,
       vendorId: req.session.role === "wholesaler" ? req.session.userId : null,
       mainUnit: b.mainUnit ?? null,
@@ -166,7 +166,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   if (b.category !== undefined) updates.category = b.category;
   if (b.unit !== undefined) updates.unit = b.unit;
   if (b.basePrice !== undefined) updates.basePrice = String(b.basePrice);
-  if (b.imageUrl !== undefined) updates.imageUrl = b.imageUrl;
+  if (b.imageUrl !== undefined) updates.imageUrl = b.imageUrl || "/assets/images/default-snack.png";
   if (b.inStock !== undefined) updates.inStock = b.inStock;
   if (b.mainUnit !== undefined) updates.mainUnit = b.mainUnit;
   if (b.subUnit !== undefined) updates.subUnit = b.subUnit;

@@ -36,8 +36,8 @@ const seededProductImages: Record<string, string> = {
 
 function resolveImageSrc(imageUrl: string | null | undefined, productName: string): string {
   if (imageUrl) {
-    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-    return `/api/storage${imageUrl}`;
+    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("/assets/")) return imageUrl;
+    return `/api/storage${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
   }
   return seededProductImages[productName] || placeholderImg;
 }

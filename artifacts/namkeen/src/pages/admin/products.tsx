@@ -38,7 +38,7 @@ const STORAGE_BASE = "/api/storage";
 
 function productImageSrc(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.includes("://")) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.includes("://") || imageUrl.startsWith("/assets/")) return imageUrl;
   return `${STORAGE_BASE}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 }
 
