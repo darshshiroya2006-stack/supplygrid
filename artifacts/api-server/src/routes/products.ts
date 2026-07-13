@@ -3,8 +3,64 @@ import { eq, sql, and } from "drizzle-orm";
 import { db, productsTable, customerPricingTable, stockEntriesTable, customersTable } from "@workspace/db";
 import { CreateProductBody, UpdateProductBody } from "@workspace/api-zod";
 import { requireAdmin } from "../lib/session";
+import fs from "fs";
+import path from "path";
+import { uploadToCatbox } from "../lib/catbox";
 
 const router: IRouter = Router();
+
+async function resolveProductImageUrl(imageUrl: string | null | undefined): Promise<string | null> {
+  if (!imageUrl) return null;
+
+  // If it's already an absolute URL or asset path, return as-is
+  if (
+    imageUrl.startsWith("http://") ||
+    imageUrl.startsWith("https://") ||
+    imageUrl.includes("://") ||
+    imageUrl.startsWith("/assets/")
+  ) {
+    return imageUrl;
+  }
+
+  // Check if it is a relative uploads path, e.g., /objects/uploads/filename.ext or objects/uploads/...
+  // Or /storage/objects/uploads/...
+  const match = imageUrl.match(/(?:objects\/uploads\/|storage\/objects\/uploads\/)([^/]+)$/);
+  if (match) {
+    const filename = match[1];
+    const uploadDir = path.join(process.cwd(), ".local/storage/uploads");
+    const filePath = path.join(uploadDir, filename);
+
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      try {
+        console.log(`[Products] Resolving local relative image path ${imageUrl} to Catbox...`);
+        const buffer = await fs.promises.readFile(filePath);
+        
+        // Determine mime type based on extension
+        const ext = path.extname(filename).toLowerCase();
+        const contentTypeMap: Record<string, string> = {
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".webp": "image/webp",
+          ".gif": "image/gif",
+          ".svg": "image/svg+xml",
+        };
+        const contentType = contentTypeMap[ext] || "application/octet-stream";
+
+        const absoluteUrl = await uploadToCatbox(buffer, filename, contentType);
+        console.log(`[Products] Resolved local file to Catbox absolute URL: ${absoluteUrl}`);
+        return absoluteUrl;
+      } catch (err) {
+        console.error(`[Products] Failed to resolve local file ${filePath} to Catbox:`, err);
+      }
+    } else {
+      console.warn(`[Products] Local file not found for path: ${filePath}`);
+    }
+  }
+
+  return imageUrl;
+}
+
 
 router.get("/", async (req, res) => {
   // Auto-sync any stock entries that have NULL productId but match a catalog product name
@@ -96,6 +152,7 @@ router.post("/", requireAdmin, async (req, res) => {
     return;
   }
   const b = parsed.data;
+  const resolvedImageUrl = await resolveProductImageUrl(b.imageUrl);
   const [created] = await db
     .insert(productsTable)
     .values({
@@ -104,7 +161,7 @@ router.post("/", requireAdmin, async (req, res) => {
       category: b.category ?? null,
       unit: b.unit,
       basePrice: String(b.basePrice),
-      imageUrl: b.imageUrl || "/assets/images/default-snack.png",
+      imageUrl: resolvedImageUrl || "/assets/images/default-snack.png",
       inStock: b.inStock ?? true,
       vendorId: req.session.role === "wholesaler" ? req.session.userId : null,
       mainUnit: b.mainUnit ?? null,
@@ -166,7 +223,9 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   if (b.category !== undefined) updates.category = b.category;
   if (b.unit !== undefined) updates.unit = b.unit;
   if (b.basePrice !== undefined) updates.basePrice = String(b.basePrice);
-  if (b.imageUrl !== undefined) updates.imageUrl = b.imageUrl || "/assets/images/default-snack.png";
+  if (b.imageUrl !== undefined) {
+    updates.imageUrl = (await resolveProductImageUrl(b.imageUrl)) || "/assets/images/default-snack.png";
+  }
   if (b.inStock !== undefined) updates.inStock = b.inStock;
   if (b.mainUnit !== undefined) updates.mainUnit = b.mainUnit;
   if (b.subUnit !== undefined) updates.subUnit = b.subUnit;

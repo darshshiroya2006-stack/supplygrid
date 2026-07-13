@@ -9,6 +9,7 @@
     "flush-stock": "tsx ./src/flush-stock.ts",
     "check-db": "tsx ./src/check-db.ts",
     "check-products": "tsx ./src/check-products.ts",
+    "migrate-images": "tsx ./src/migrate-images-to-catbox.ts",
     "check-analytics": "tsx ./src/check-analytics.ts",
     "run-update": "tsx ./src/run-update.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
