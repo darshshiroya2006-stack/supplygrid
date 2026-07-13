@@ -191,9 +191,13 @@ export default function AdminProducts() {
       updateProduct.mutate(
         { id: editingProduct.id, data: payload },
         {
-          onSuccess: () => {
+          onSuccess: async (updatedProduct) => {
             toast.success("Product updated");
-            queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+            queryClient.setQueryData(getListProductsQueryKey(), (old: any) => {
+              if (!old) return old;
+              return old.map((p: any) => p.id === updatedProduct.id ? updatedProduct : p);
+            });
+            await queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
             setLocalPreviewUrl(null);
             setIsDialogOpen(false);
           },
@@ -204,9 +208,13 @@ export default function AdminProducts() {
       createProduct.mutate(
         { data: payload },
         {
-          onSuccess: () => {
+          onSuccess: async (createdProduct) => {
             toast.success("Product created");
-            queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+            queryClient.setQueryData(getListProductsQueryKey(), (old: any) => {
+              if (!old) return [createdProduct];
+              return [...old, createdProduct];
+            });
+            await queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
             setLocalPreviewUrl(null);
             setIsDialogOpen(false);
           },
