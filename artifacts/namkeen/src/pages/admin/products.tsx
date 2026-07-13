@@ -38,8 +38,29 @@ const STORAGE_BASE = "/api/storage";
 
 function productImageSrc(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-  return `${STORAGE_BASE}${imageUrl}`;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.includes("://")) return imageUrl;
+  return `${STORAGE_BASE}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+}
+
+function SafeProductImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setError(false);
+  }, [src]);
+
+  if (error || !src) {
+    return <ImageIcon className="w-4 h-4 text-muted-foreground" />;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => setError(true)}
+    />
+  );
 }
 
 const productSchema = z.object({
@@ -73,6 +94,9 @@ export default function AdminProducts() {
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const [dialogImageError, setDialogImageError] = useState(false);
+
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -98,6 +122,10 @@ export default function AdminProducts() {
   const currentImageUrl = form.watch("imageUrl");
   const imageSrc = productImageSrc(currentImageUrl);
 
+  useEffect(() => {
+    setDialogImageError(false);
+  }, [currentImageUrl]);
+
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -114,6 +142,8 @@ export default function AdminProducts() {
       availableStock: 0, stockBoxes: null, stockPackets: null,
     });
     setEditingProduct(null);
+    setLocalPreviewUrl(null);
+    setDialogImageError(false);
     setIsDialogOpen(true);
   };
 
@@ -141,6 +171,8 @@ export default function AdminProducts() {
       stockPackets: null,
     });
     setEditingProduct(product);
+    setLocalPreviewUrl(null);
+    setDialogImageError(false);
     setIsDialogOpen(true);
   };
 
@@ -162,6 +194,7 @@ export default function AdminProducts() {
           onSuccess: () => {
             toast.success("Product updated");
             queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+            setLocalPreviewUrl(null);
             setIsDialogOpen(false);
           },
           onError: () => toast.error("Failed to update product"),
@@ -174,6 +207,7 @@ export default function AdminProducts() {
           onSuccess: () => {
             toast.success("Product created");
             queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
+            setLocalPreviewUrl(null);
             setIsDialogOpen(false);
           },
           onError: () => toast.error("Failed to create product"),
@@ -224,6 +258,10 @@ export default function AdminProducts() {
       toast.error("Please select an image file (JPG, PNG, WebP, etc.)");
       return;
     }
+
+    const localUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(localUrl);
+    setDialogImageError(false);
 
     setIsUploading(true);
     setProgress(20);
@@ -369,16 +407,11 @@ export default function AdminProducts() {
                     <TableRow key={product.id} className={!product.inStock ? "opacity-60" : ""}>
                       <TableCell>
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                          {src ? (
-                            <img
-                              src={src}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                            />
-                          ) : (
-                            <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                          )}
+                          <SafeProductImage
+                            src={src || ""}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                       </TableCell>
                       <TableCell>
@@ -595,15 +628,13 @@ export default function AdminProducts() {
 
                     {/* Preview area */}
                     <div className="rounded-xl border-2 border-dashed border-muted-foreground/25 overflow-hidden bg-muted/30">
-                      {imageSrc ? (
+                      {localPreviewUrl || (!dialogImageError && imageSrc) ? (
                         <div className="relative group">
                           <img
-                            src={imageSrc}
+                            src={localPreviewUrl || imageSrc || ""}
                             alt="Product preview"
                             className="w-full h-44 object-cover"
-                            onError={(e) => {
-                              (e.currentTarget.parentElement!.parentElement!).classList.add("no-img");
-                            }}
+                            onError={() => setDialogImageError(true)}
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             {/* label htmlFor triggers the root-level file input natively */}
@@ -619,7 +650,11 @@ export default function AdminProducts() {
                               type="button"
                               size="sm"
                               variant="destructive"
-                              onClick={() => form.setValue("imageUrl", null)}
+                              onClick={() => {
+                                form.setValue("imageUrl", null);
+                                setLocalPreviewUrl(null);
+                                setDialogImageError(false);
+                              }}
                             >
                               <X className="w-3 h-3 mr-1" />
                               Remove

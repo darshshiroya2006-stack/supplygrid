@@ -144,6 +144,10 @@ export default function ShopIndex() {
                     src={resolveImageSrc(product.imageUrl, product.name)} 
                     alt={product.name}
                     className={`w-full h-full object-cover transition-transform duration-500 ${isOutOfStock ? 'grayscale' : 'group-hover:scale-110'}`}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = placeholderImg;
+                    }}
                   />
                   {isOutOfStock && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center backdrop-blur-sm">
