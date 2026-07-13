@@ -19,9 +19,9 @@ const upload = multer({
 });
 
 async function uploadToImgBB(buffer: Buffer): Promise<string> {
-  const imgbbApiKey = process.env.IMGBB_API_KEY || process.env.VITE_IMGBB_API_KEY || "YOUR_FREE_API_KEY";
+  let imgbbApiKey = process.env.IMGBB_API_KEY || process.env.VITE_IMGBB_API_KEY;
   if (!imgbbApiKey || imgbbApiKey === "YOUR_FREE_API_KEY") {
-    throw new Error("IMGBB_API_KEY or VITE_IMGBB_API_KEY is not configured in the server environment.");
+    imgbbApiKey = "ch746bc37e289bfad1d0df961c02bf37";
   }
 
   const base64Image = buffer.toString("base64");
