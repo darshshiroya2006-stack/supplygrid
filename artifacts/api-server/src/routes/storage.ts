@@ -18,30 +18,27 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-async function uploadToTmpFiles(buffer: Buffer, originalname: string, mimetype: string): Promise<string> {
+async function uploadToImgBB(buffer: Buffer, originalname: string, mimetype: string): Promise<string> {
   const formData = new FormData();
   const blob = new Blob([new Uint8Array(buffer)], { type: mimetype });
-  formData.append("file", blob, originalname);
+  formData.append("image", blob, originalname);
 
-  const response = await fetch("https://tmpfiles.org/api/v1/upload", {
+  const response = await fetch("https://api.imgbb.com/1/upload?key=6d962cfc21ffeb766d744837e289bfad", {
     method: "POST",
     body: formData,
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`TmpFiles upload HTTP ${response.status} failed: ${errText}`);
+    throw new Error(`ImgBB upload HTTP ${response.status} failed: ${errText}`);
   }
 
   const resData = (await response.json()) as any;
-  if (resData.status !== "success" || !resData.data?.url) {
-    throw new Error(resData.error || "TmpFiles upload was unsuccessful");
+  if (!resData.success || !resData.data?.url) {
+    throw new Error(resData.error?.message || "ImgBB upload was unsuccessful");
   }
 
-  const url = resData.data.url;
-  // Convert tmpfiles.org/ url to its direct /dl/ download path link
-  const directUrl = url.replace("https://tmpfiles.org/", "https://tmpfiles.org/dl/");
-  return directUrl;
+  return resData.data.url;
 }
 
 router.post(
@@ -64,14 +61,14 @@ router.post(
         return;
       }
 
-      console.log(`[Storage] Uploading file to TmpFiles: ${file.originalname}`);
-      const imageUrl = await uploadToTmpFiles(file.buffer, file.originalname, file.mimetype);
-      console.log(`[Storage] Uploaded to TmpFiles successfully: ${imageUrl}`);
+      console.log(`[Storage] Uploading file to ImgBB: ${file.originalname}`);
+      const imageUrl = await uploadToImgBB(file.buffer, file.originalname, file.mimetype);
+      console.log(`[Storage] Uploaded to ImgBB successfully: ${imageUrl}`);
 
       res.json({ ok: true, imageUrl });
     } catch (error: any) {
       console.error("SERVER_UPLOAD_CRASH:", error);
-      res.status(500).json({ error: error.message || "Failed to upload file to TmpFiles" });
+      res.status(500).json({ error: error.message || "Failed to upload file to ImgBB" });
     }
   }
 );

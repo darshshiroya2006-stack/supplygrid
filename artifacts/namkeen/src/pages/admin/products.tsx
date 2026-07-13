@@ -126,6 +126,19 @@ export default function AdminProducts() {
     setDialogImageError(false);
   }, [currentImageUrl]);
 
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (!isDialogOpen) {
+      timer = setTimeout(() => {
+        setLocalPreviewUrl(null);
+        setDialogImageError(false);
+      }, 300);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isDialogOpen]);
+
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -198,7 +211,6 @@ export default function AdminProducts() {
               return old.map((p: any) => p.id === updatedProduct.id ? updatedProduct : p);
             });
             await queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-            setLocalPreviewUrl(null);
             setIsDialogOpen(false);
           },
           onError: () => toast.error("Failed to update product"),
@@ -215,7 +227,6 @@ export default function AdminProducts() {
               return [...old, createdProduct];
             });
             await queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
-            setLocalPreviewUrl(null);
             setIsDialogOpen(false);
           },
           onError: () => toast.error("Failed to create product"),
