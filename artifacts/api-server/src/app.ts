@@ -32,8 +32,8 @@ const allowedOrigins = process.env["CORS_ORIGIN"]
   ? process.env["CORS_ORIGIN"].split(",").map((o) => o.trim())
   : ["http://localhost:3005"];
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 const sessionSecret = process.env["SESSION_SECRET"] ?? "dev-secret-change-me";
 const PgSession = connectPgSimple(session);
