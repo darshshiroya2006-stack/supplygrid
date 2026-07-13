@@ -213,8 +213,10 @@ export interface CreateOrderBody {
 export interface Inquiry {
   id: number;
   name: string;
-  shopName?: string | null;
+  shopName: string;
+  address: string;
   phone: string;
+  gstNumber?: string | null;
   email?: string | null;
   message: string;
   createdAt: string;
@@ -222,8 +224,10 @@ export interface Inquiry {
 
 export interface CreateInquiryBody {
   name: string;
-  shopName?: string | null;
+  shopName: string;
+  address: string;
   phone: string;
+  gstNumber?: string | null;
   email?: string | null;
   message: string;
 }

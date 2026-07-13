@@ -1196,9 +1196,13 @@ components:
           type: string
         shopName:
           type: string
-          nullable: true
+        address:
+          type: string
         phone:
           type: string
+        gstNumber:
+          type: string
+          nullable: true
         email:
           type: string
           nullable: true
@@ -1206,7 +1210,7 @@ components:
           type: string
         createdAt:
           type: string
-      required: [id, name, phone, message, createdAt]
+      required: [id, name, shopName, address, phone, message, createdAt]
 
     CreateInquiryBody:
       type: object
@@ -1215,15 +1219,19 @@ components:
           type: string
         shopName:
           type: string
-          nullable: true
+        address:
+          type: string
         phone:
           type: string
+        gstNumber:
+          type: string
+          nullable: true
         email:
           type: string
           nullable: true
         message:
           type: string
-      required: [name, phone, message]
+      required: [name, shopName, address, phone, message]
 
     StockEntry:
       type: object

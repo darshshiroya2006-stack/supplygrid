@@ -73,6 +73,10 @@ router.post("/login", async (req, res) => {
       res.status(403).json({ message: "તમારું એકાઉન્ટ હજી સુપર એડમિનના અપ્રુવલ માટે બાકી છે!" });
       return;
     }
+    if (admin.status === "DEACTIVATED") {
+      res.status(403).json({ message: "તમારું સબ્સ્ક્રિપ્શન પેમેન્ટ બાકી છે, કૃપા કરીને સુપર એડમિનનો સંપર્ક કરો." });
+      return;
+    }
 
     req.session.role = admin.role as any;
     req.session.userId = admin.id;

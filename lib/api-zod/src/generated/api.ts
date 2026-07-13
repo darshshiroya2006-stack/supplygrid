@@ -500,8 +500,10 @@ export const DeleteOrderResponse = zod.object({
 export const ListInquiriesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "shopName": zod.string().nullish(),
+  "shopName": zod.string(),
+  "address": zod.string(),
   "phone": zod.string(),
+  "gstNumber": zod.string().nullish(),
   "email": zod.string().nullish(),
   "message": zod.string(),
   "createdAt": zod.string()
@@ -514,8 +516,10 @@ export const ListInquiriesResponse = zod.array(ListInquiriesResponseItem)
  */
 export const CreateInquiryBody = zod.object({
   "name": zod.string(),
-  "shopName": zod.string().nullish(),
+  "shopName": zod.string(),
+  "address": zod.string(),
   "phone": zod.string(),
+  "gstNumber": zod.string().nullish(),
   "email": zod.string().nullish(),
   "message": zod.string()
 })
@@ -523,8 +527,10 @@ export const CreateInquiryBody = zod.object({
 export const CreateInquiryResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "shopName": zod.string().nullish(),
+  "shopName": zod.string(),
+  "address": zod.string(),
   "phone": zod.string(),
+  "gstNumber": zod.string().nullish(),
   "email": zod.string().nullish(),
   "message": zod.string(),
   "createdAt": zod.string()

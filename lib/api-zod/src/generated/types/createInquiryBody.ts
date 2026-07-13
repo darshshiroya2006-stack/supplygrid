@@ -8,8 +8,10 @@
 
 export interface CreateInquiryBody {
   name: string;
-  shopName?: string | null;
+  shopName: string;
+  address: string;
   phone: string;
+  gstNumber?: string | null;
   email?: string | null;
   message: string;
 }

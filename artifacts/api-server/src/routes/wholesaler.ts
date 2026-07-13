@@ -14,6 +14,7 @@ router.get("/profile", async (req, res) => {
   const [admin] = await db
     .select({
       id: adminsTable.id,
+      username: adminsTable.username,
       shopName: adminsTable.shopName,
       name: adminsTable.name,
       phone: adminsTable.phone,
@@ -41,7 +42,7 @@ router.patch("/profile", async (req, res) => {
     return;
   }
 
-  const { shopName, phone, address, gstin, gst_number } = req.body;
+  const { shopName, phone, address, gstin, gst_number, username, password } = req.body;
 
   const updates: Record<string, any> = {};
   if (shopName !== undefined) updates.shopName = shopName;
@@ -49,6 +50,28 @@ router.patch("/profile", async (req, res) => {
   if (address !== undefined) updates.address = address;
   if (gstin !== undefined) updates.gstin = gstin;
   if (gst_number !== undefined) updates.gst_number = gst_number;
+
+  if (username !== undefined && username.trim() !== "") {
+    const [existing] = await db
+      .select()
+      .from(adminsTable)
+      .where(eq(adminsTable.username, username.trim()))
+      .limit(1);
+    if (existing && existing.id !== req.session.userId) {
+      res.status(400).json({ message: "Username is already taken by another account" });
+      return;
+    }
+    updates.username = username.trim();
+  }
+
+  if (password !== undefined && password.trim() !== "") {
+    if (password.trim().length < 6) {
+      res.status(400).json({ message: "Password must be at least 6 characters long" });
+      return;
+    }
+    const bcrypt = await import("bcryptjs");
+    updates.passwordHash = bcrypt.default.hashSync(password.trim(), 10);
+  }
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ message: "No fields to update" });
@@ -61,6 +84,7 @@ router.patch("/profile", async (req, res) => {
     .where(eq(adminsTable.id, req.session.userId))
     .returning({
       id: adminsTable.id,
+      username: adminsTable.username,
       shopName: adminsTable.shopName,
       name: adminsTable.name,
       phone: adminsTable.phone,

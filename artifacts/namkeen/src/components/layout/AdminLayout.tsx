@@ -69,6 +69,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     phone: "",
     address: "",
     gst_number: "",
+    username: "",
+    password: "",
   });
 
   // Sub-accounts states
@@ -94,6 +96,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           phone: data.phone || "",
           address: data.address || "",
           gst_number: data.gst_number || "",
+          username: data.username || "",
+          password: "",
         });
       }
     } catch (err) {
@@ -437,6 +441,28 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </div>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={profileData.username || ""}
+                    onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                    placeholder="e.g. patel1008"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password (Leave blank to keep current)</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={profileData.password || ""}
+                    onChange={(e) => setProfileData({ ...profileData, password: e.target.value })}
+                    placeholder="Enter new password"
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="shopName">Shop Name</Label>
                   <Input

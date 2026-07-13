@@ -253,13 +253,15 @@ async function main() {
     {
       name: "Mahesh Joshi",
       shopName: "Joshi Trading Co",
+      address: "123 Market Road, Rajkot, Gujarat",
       phone: "+91 99000 11223",
       email: "mahesh@example.com",
       message: "Interested in wholesale rates for assorted namkeen for our retail chain.",
     },
     {
       name: "Priya Singh",
-      shopName: null,
+      shopName: "Priya Singh Retail",
+      address: "456 Highway St, Ahmedabad, Gujarat",
       phone: "+91 98876 54321",
       email: null,
       message: "Looking for sample pack and pricing for monthly supply.",

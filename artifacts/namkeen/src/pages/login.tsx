@@ -155,6 +155,15 @@ export default function Login() {
       },
       onError: (error) => {
         toast.error(error.data?.message || "Invalid credentials");
+        if (error.status === 401) {
+          setTimeout(() => {
+            setLocation("/");
+            setTimeout(() => {
+              const el = document.getElementById("contact");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }, 200);
+          }, 1500);
+        }
       }
     });
   }
@@ -222,18 +231,6 @@ export default function Login() {
                 </Button>
               </form>
             </Form>
-            
-            <div className="mt-8 pt-6 border-t flex flex-col gap-3 text-center">
-              <span className="text-xs text-muted-foreground">New to SupplyGrid?</span>
-              <div className="flex gap-3 justify-center">
-                <Button variant="outline" className="w-1/2 py-5 text-xs text-primary font-semibold" onClick={() => setLocation("/signup/wholesaler")}>
-                  Wholesaler Sign Up
-                </Button>
-                <Button variant="outline" className="w-1/2 py-5 text-xs text-orange-600 font-semibold border-orange-200 hover:bg-orange-50" onClick={() => setLocation("/signup/retailer")}>
-                  Retailer Sign Up
-                </Button>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

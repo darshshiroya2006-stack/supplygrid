@@ -16,9 +16,11 @@ import { Link } from "wouter";
 import heroImg from "@/assets/hero.png";
 
 const inquirySchema = z.object({
-  name: z.string().min(2, "Name is required"),
-  shopName: z.string().optional(),
-  phone: z.string().min(10, "Valid phone number is required"),
+  name: z.string().min(2, "Merchant Name is required"),
+  shopName: z.string().min(2, "Business Name is required"),
+  address: z.string().min(5, "Full Address is required"),
+  phone: z.string().min(10, "Valid contact number is required"),
+  gstNumber: z.string().optional(),
   email: z.string().email("Valid email is required").or(z.literal("")),
   message: z.string().min(10, "Please provide some details"),
 });
@@ -31,7 +33,9 @@ export default function Landing() {
     defaultValues: {
       name: "",
       shopName: "",
+      address: "",
       phone: "",
+      gstNumber: "",
       email: "",
       message: "",
     },
@@ -143,9 +147,9 @@ export default function Landing() {
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Your Name</FormLabel>
+                            <FormLabel>Merchant Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="John Doe" {...field} />
+                              <Input placeholder="e.g. Darsh Shiroya" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -156,9 +160,9 @@ export default function Landing() {
                         name="shopName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Shop Name (Optional)</FormLabel>
+                            <FormLabel>Business Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="Krishna Sweets & Snacks" {...field} />
+                              <Input placeholder="e.g. Krishna Sweets & Snacks" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -171,9 +175,9 @@ export default function Landing() {
                         name="phone"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Phone Number</FormLabel>
+                            <FormLabel>Contact Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="+91 9999999999" {...field} />
+                              <Input placeholder="e.g. +91 9999999999" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -186,13 +190,43 @@ export default function Landing() {
                           <FormItem>
                             <FormLabel>Email (Optional)</FormLabel>
                             <FormControl>
-                              <Input placeholder="john@example.com" {...field} />
+                              <Input placeholder="e.g. john@example.com" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
+                    <FormField
+                      control={form.control}
+                      name="address"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Address</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Enter full physical address of the business..." 
+                              className="min-h-[80px]"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="gstNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>GST Number (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. 24AAAAP1234A1Z1" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name="message"
@@ -210,7 +244,7 @@ export default function Landing() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" size="lg" className="w-full text-base" disabled={createInquiry.isPending}>
+                    <Button type="submit" size="lg" className="w-full text-base cursor-pointer" disabled={createInquiry.isPending}>
                       {createInquiry.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Submit Inquiry
                     </Button>
