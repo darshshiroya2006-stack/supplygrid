@@ -40,7 +40,7 @@ async function uploadToTmpFiles(buffer: Buffer, originalname: string, mimetype: 
 
   const url = resData.data.url;
   // Convert tmpfiles.org/ url to its direct /dl/ download path link
-  const directUrl = url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
+  const directUrl = url.replace("https://tmpfiles.org/", "https://tmpfiles.org/dl/");
   return directUrl;
 }
 
