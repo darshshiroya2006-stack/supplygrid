@@ -135,7 +135,7 @@ export default function ShopIndex() {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3">
           {filteredProducts?.map((product, idx) => {
             const hasCustomPrice = product.customerPrice !== null && product.customerPrice !== undefined;
             const price = hasCustomPrice ? product.customerPrice : product.basePrice;
@@ -144,7 +144,7 @@ export default function ShopIndex() {
 
             return (
               <Card key={product.id} className="overflow-hidden border-none shadow-md hover:shadow-xl transition-all group flex flex-col">
-                <div className="aspect-square bg-muted relative overflow-hidden">
+                <div className="h-36 w-full sm:h-auto sm:aspect-square bg-muted relative overflow-hidden">
                   <img 
                     src={resolveImageSrc(product.imageUrl, product.name)} 
                     alt={product.name}
@@ -156,45 +156,45 @@ export default function ShopIndex() {
                   />
                   {isOutOfStock && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center backdrop-blur-sm">
-                      <span className="bg-destructive text-destructive-foreground px-4 py-2 font-bold rounded-md shadow-lg">
+                      <span className="bg-destructive text-destructive-foreground px-2 py-1 text-xs sm:px-4 sm:py-2 sm:text-base font-bold rounded-md shadow-lg">
                         Out of Stock
                       </span>
                     </div>
                   )}
                   {hasCustomPrice && !isOutOfStock && (
-                    <div className="absolute top-2 right-2 bg-secondary text-secondary-foreground text-xs font-bold px-2 py-1 rounded shadow">
+                    <div className="absolute top-2 right-2 bg-secondary text-secondary-foreground text-[10px] sm:text-xs font-bold px-1.5 py-0.5 sm:px-2 sm:py-1 rounded shadow">
                       Special Rate
                     </div>
                   )}
                 </div>
-                <CardContent className="p-5 flex-1 flex flex-col">
+                <CardContent className="p-3 sm:p-5 flex-1 flex flex-col">
                   <div className="flex-1">
-                    <h3 className="font-serif font-bold text-lg leading-tight mb-1">{product.name}</h3>
-                    <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem] mb-4">
+                    <h3 className="font-serif font-semibold text-sm sm:text-lg sm:font-bold leading-tight line-clamp-1 mb-1">{product.name}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1 sm:line-clamp-2 min-h-[1rem] sm:min-h-[2.5rem] mb-3 sm:mb-4">
                       {product.description || "Premium wholesale snack."}
                     </p>
                   </div>
                   
                   <div className="mt-auto">
-                    <div className="flex items-end justify-between mb-4">
+                    <div className="flex items-end justify-between mb-3 sm:mb-4">
                       <div>
-                        <div className="text-xl font-bold text-primary">
-                          ₹{price} <span className="text-sm font-normal text-muted-foreground">/ {product.unit}</span>
+                        <div className="text-base sm:text-xl font-bold text-primary">
+                          ₹{price} <span className="text-[10px] sm:text-sm font-normal text-muted-foreground">/ {product.unit}</span>
                         </div>
                         {hasCustomPrice && (
-                          <div className="text-xs text-muted-foreground line-through">
+                          <div className="text-[10px] sm:text-xs text-muted-foreground line-through">
                             Regular: ₹{product.basePrice}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center border rounded-md h-10 bg-background flex-1">
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center border rounded-md h-8 sm:h-10 bg-background w-full">
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-full rounded-none rounded-l-md px-2 hover:bg-muted"
+                          className="h-full rounded-none rounded-l-md px-1.5 sm:px-2 hover:bg-muted"
                           onClick={() => handleQtyChange(product.id, -1)}
                           disabled={isOutOfStock || currentQty <= 1}
                         >
@@ -207,12 +207,12 @@ export default function ShopIndex() {
                           disabled={isOutOfStock}
                           onChange={(e) => handleQtySet(product.id, e.target.value)}
                           onWheel={(e) => e.currentTarget.blur()}
-                          className="flex-1 w-12 text-center font-medium text-sm bg-transparent focus:outline-none border-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="flex-1 w-full text-center font-medium text-xs sm:text-sm bg-transparent focus:outline-none border-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-full rounded-none rounded-r-md px-2 hover:bg-muted"
+                          className="h-full rounded-none rounded-r-md px-1.5 sm:px-2 hover:bg-muted"
                           onClick={() => handleQtyChange(product.id, 1)}
                           disabled={isOutOfStock}
                         >
@@ -220,13 +220,13 @@ export default function ShopIndex() {
                         </Button>
                       </div>
                       <Button 
-                        className="h-10 px-4 flex-1 text-sm font-semibold" 
+                        className="h-8 sm:h-10 px-2 sm:px-4 w-full text-xs sm:text-sm font-semibold" 
                         onClick={() => handleAddToCart(product, idx)}
                         disabled={isOutOfStock}
                       >
                         {isOutOfStock ? "Unavailable" : (
                           <>
-                            <ShoppingCart className="w-4 h-4 mr-2 inline" />
+                            <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2 inline" />
                             Add to Cart
                           </>
                         )}
