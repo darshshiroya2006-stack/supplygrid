@@ -38,7 +38,14 @@ const STORAGE_BASE = "/api/storage";
 
 function productImageSrc(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.includes("://") || imageUrl.startsWith("/assets/")) return imageUrl;
+  // Base64 data URLs, absolute URLs, and /assets/ paths all render directly
+  if (
+    imageUrl.startsWith("data:") ||
+    imageUrl.startsWith("http://") ||
+    imageUrl.startsWith("https://") ||
+    imageUrl.includes("://") ||
+    imageUrl.startsWith("/assets/")
+  ) return imageUrl;
   return `${STORAGE_BASE}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 }
 
@@ -270,7 +277,7 @@ export default function AdminProducts() {
     );
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -278,44 +285,28 @@ export default function AdminProducts() {
       return;
     }
 
+    // Show a local object URL immediately for the preview thumbnail
     const localUrl = URL.createObjectURL(file);
     setLocalPreviewUrl(localUrl);
     setDialogImageError(false);
 
+    // Convert the file to a Base64 Data URL and store it directly in form state
     setIsUploading(true);
-    setProgress(20);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      setProgress(50);
-      const response = await fetch(`${STORAGE_BASE}/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${response.status} failed`);
-      }
-
-      setProgress(80);
-      const resData = await response.json();
-      
-      if (!resData.ok || !resData.imageUrl) {
-        throw new Error(resData.error || "Upload was unsuccessful");
-      }
-
-      const absoluteUrl = resData.imageUrl;
-      form.setValue("imageUrl", absoluteUrl, { shouldDirty: true });
-      toast.success("Photo uploaded successfully");
-    } catch (err: any) {
-      console.error("FRONTEND_UPLOAD_CRASH:", err);
-      toast.error(`Upload failed: ${err.message}`);
-    } finally {
-      setIsUploading(false);
+    setProgress(30);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      form.setValue("imageUrl", base64, { shouldDirty: true });
       setProgress(100);
-    }
+      setIsUploading(false);
+      toast.success("Photo ready — will be saved with the product");
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read file. Please try again.");
+      setIsUploading(false);
+      setProgress(0);
+    };
+    reader.readAsDataURL(file);
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
