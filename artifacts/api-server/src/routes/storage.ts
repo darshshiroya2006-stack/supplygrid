@@ -18,35 +18,30 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-async function uploadToImgBB(buffer: Buffer): Promise<string> {
-  let imgbbApiKey = process.env.IMGBB_API_KEY || process.env.VITE_IMGBB_API_KEY;
-  if (!imgbbApiKey || imgbbApiKey === "YOUR_FREE_API_KEY") {
-    imgbbApiKey = "ch746bc37e289bfad1d0df961c02bf37";
-  }
+async function uploadToTmpFiles(buffer: Buffer, originalname: string, mimetype: string): Promise<string> {
+  const formData = new FormData();
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimetype });
+  formData.append("file", blob, originalname);
 
-  const base64Image = buffer.toString("base64");
-  const params = new URLSearchParams();
-  params.append("image", base64Image);
-
-  const response = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, {
+  const response = await fetch("https://tmpfiles.org/api/v1/upload", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: params.toString(),
+    body: formData,
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`ImgBB upload HTTP ${response.status} failed: ${errText}`);
+    throw new Error(`TmpFiles upload HTTP ${response.status} failed: ${errText}`);
   }
 
   const resData = (await response.json()) as any;
-  if (!resData.success || !resData.data?.url) {
-    throw new Error(resData.error?.message || "ImgBB upload was unsuccessful");
+  if (resData.status !== "success" || !resData.data?.url) {
+    throw new Error(resData.error || "TmpFiles upload was unsuccessful");
   }
 
-  return resData.data.url;
+  const url = resData.data.url;
+  // Convert tmpfiles.org/ url to its direct /dl/ download path link
+  const directUrl = url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
+  return directUrl;
 }
 
 router.post(
@@ -69,14 +64,14 @@ router.post(
         return;
       }
 
-      console.log(`[Storage] Uploading file to ImgBB: ${file.originalname}`);
-      const imageUrl = await uploadToImgBB(file.buffer);
-      console.log(`[Storage] Uploaded to ImgBB successfully: ${imageUrl}`);
+      console.log(`[Storage] Uploading file to TmpFiles: ${file.originalname}`);
+      const imageUrl = await uploadToTmpFiles(file.buffer, file.originalname, file.mimetype);
+      console.log(`[Storage] Uploaded to TmpFiles successfully: ${imageUrl}`);
 
       res.json({ ok: true, imageUrl });
     } catch (error: any) {
       console.error("SERVER_UPLOAD_CRASH:", error);
-      res.status(500).json({ error: error.message || "Failed to upload file to ImgBB" });
+      res.status(500).json({ error: error.message || "Failed to upload file to TmpFiles" });
     }
   }
 );
