@@ -221,13 +221,29 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     logout.mutate(undefined, {
       onSuccess: () => {
         localStorage.removeItem('supplygrid_token');
+        localStorage.clear();
+        try {
+          // @ts-ignore
+          if (typeof axios !== 'undefined') {
+            // @ts-ignore
+            delete axios.defaults.headers.common['Authorization'];
+          }
+        } catch (e) {}
         queryClient.clear();
-        setLocation("/login");
+        window.location.href = '/login';
       },
       onError: () => {
         localStorage.removeItem('supplygrid_token');
+        localStorage.clear();
+        try {
+          // @ts-ignore
+          if (typeof axios !== 'undefined') {
+            // @ts-ignore
+            delete axios.defaults.headers.common['Authorization'];
+          }
+        } catch (e) {}
         queryClient.clear();
-        setLocation("/login");
+        window.location.href = '/login';
       },
     });
   };
