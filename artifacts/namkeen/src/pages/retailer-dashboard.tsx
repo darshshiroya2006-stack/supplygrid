@@ -49,10 +49,12 @@ export default function RetailerDashboard() {
   const handleLogout = () => {
     logout.mutate(undefined, {
       onSuccess: () => {
+        localStorage.removeItem('supplygrid_token');
         queryClient.clear();
         setLocation("/login");
       },
       onError: () => {
+        localStorage.removeItem('supplygrid_token');
         queryClient.clear();
         setLocation("/login");
       },

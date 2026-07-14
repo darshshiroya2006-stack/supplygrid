@@ -72,6 +72,7 @@ export const LoginResponse = zod.object({
   "shopName": zod.string().nullish(),
   "uniqueVendorId": zod.string().nullish(),
   "wholesalerShopName": zod.string().nullish(),
+  "token": zod.string().nullish(),
   "linkedWholesalers": zod.array(zod.object({
   "id": zod.number(),
   "shopName": zod.string().nullish(),
@@ -100,6 +101,7 @@ export const GetCurrentUserResponse = zod.object({
   "shopName": zod.string().nullish(),
   "uniqueVendorId": zod.string().nullish(),
   "wholesalerShopName": zod.string().nullish(),
+  "token": zod.string().nullish(),
   "linkedWholesalers": zod.array(zod.object({
   "id": zod.number(),
   "shopName": zod.string().nullish(),

@@ -141,16 +141,25 @@ export default function Login() {
   function onSubmit(values: z.infer<typeof loginSchema>) {
     login.mutate({ data: values }, {
       onSuccess: (session) => {
+        const token = (session as any).token;
+        if (token) {
+          localStorage.setItem('supplygrid_token', token);
+          try {
+            // @ts-ignore
+            if (typeof axios !== 'undefined') {
+              // @ts-ignore
+              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            }
+          } catch (e) {}
+        }
         toast.success("Logged in successfully");
         queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
         
+        const isWholesaler = session.role === 'wholesaler' || session.role === 'admin' || session.role === 'super_admin';
         if (session.role === 'super_admin') {
-          setLocation("/super-admin");
-        } else if (session.role === 'admin' || session.role === 'wholesaler') {
-          setLocation("/admin");
+          window.location.href = '/super-admin';
         } else {
-          // Retailers go to their multi-wholesaler selection dashboard
-          setLocation("/retailer");
+          window.location.href = isWholesaler ? '/admin/products' : '/retailer/dashboard';
         }
       },
       onError: (error) => {

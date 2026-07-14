@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
+import { verifyJwt } from "./lib/jwt.js";
 
 const app: Express = express();
 
@@ -56,6 +57,23 @@ app.use(
     },
   }),
 );
+
+app.use((req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const decoded = verifyJwt(token);
+    if (decoded) {
+      req.session.role = decoded.role;
+      req.session.userId = decoded.userId;
+      req.session.name = decoded.name;
+      req.session.shopName = decoded.shopName;
+      req.session.uniqueVendorId = decoded.uniqueVendorId;
+      req.session.username = decoded.username;
+    }
+  }
+  next();
+});
 
 app.use("/api", router);
 

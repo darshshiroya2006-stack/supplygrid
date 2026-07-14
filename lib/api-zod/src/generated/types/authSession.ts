@@ -16,5 +16,6 @@ export interface AuthSession {
   shopName?: string | null;
   uniqueVendorId?: string | null;
   wholesalerShopName?: string | null;
+  token?: string | null;
   linkedWholesalers?: LinkedWholesaler[];
 }

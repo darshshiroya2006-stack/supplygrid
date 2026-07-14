@@ -833,6 +833,9 @@ components:
         wholesalerShopName:
           type: string
           nullable: true
+        token:
+          type: string
+          nullable: true
         linkedWholesalers:
           type: array
           items:

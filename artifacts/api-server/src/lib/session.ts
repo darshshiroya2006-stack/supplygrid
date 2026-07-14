@@ -10,6 +10,7 @@ declare module "express-session" {
     signupOtp?: string;
     signupOtpExpiry?: number;
     signupPhone?: string;
+    username?: string;
   }
 }
 

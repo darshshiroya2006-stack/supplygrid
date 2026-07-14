@@ -4,6 +4,7 @@ import { eq, and, or } from "drizzle-orm";
 import { db, adminsTable, customersTable, retailerWholesalersTable } from "@workspace/db";
 import { LoginBody } from "@workspace/api-zod";
 import { sendEmailOtp, sendForgotPasswordOtp } from "../lib/email.js";
+import { signJwt, verifyJwt } from "../lib/jwt.js";
 
 const router: IRouter = Router();
 const emailOtpCache = new Map<string, { otp: string; expiresAt: number }>();
@@ -83,7 +84,18 @@ router.post("/login", async (req, res) => {
     req.session.name = admin.name;
     req.session.shopName = admin.shopName ?? undefined;
     req.session.uniqueVendorId = admin.uniqueVendorId ?? undefined;
+
+    const token = signJwt({
+      userId: admin.id,
+      role: admin.role,
+      name: admin.name,
+      shopName: admin.shopName ?? null,
+      uniqueVendorId: admin.uniqueVendorId ?? null,
+      username: admin.username,
+    });
+
     res.json({
+      token,
       authenticated: true,
       role: admin.role,
       userId: admin.id,
@@ -111,7 +123,17 @@ router.post("/login", async (req, res) => {
 
     const linkedWholesalers = await getRetailerLinkedWholesalers(customer.id);
 
+    const token = signJwt({
+      userId: customer.id,
+      role: customer.role,
+      name: customer.ownerName ?? customer.shopName,
+      shopName: customer.shopName,
+      uniqueVendorId: null,
+      username: customer.username,
+    });
+
     res.json({
+      token,
       authenticated: true,
       role: customer.role,
       userId: customer.id,
@@ -144,6 +166,89 @@ router.post("/logout", (req, res) => {
 
 router.get("/me", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const decoded = verifyJwt(token);
+    if (!decoded) {
+      res.status(401).json({ message: "Invalid or expired authorization token" });
+      return;
+    }
+
+    if (decoded.role === "retailer" || decoded.role === "customer") {
+      const [customer] = await db
+        .select()
+        .from(customersTable)
+        .where(or(eq(customersTable.id, decoded.userId), eq(customersTable.username, decoded.username || "")))
+        .limit(1);
+
+      if (!customer) {
+        res.status(401).json({ message: "User account not found" });
+        return;
+      }
+
+      req.session.role = customer.role as any;
+      req.session.userId = customer.id;
+      req.session.name = customer.ownerName ?? customer.shopName;
+      req.session.shopName = customer.shopName;
+      req.session.username = customer.username;
+
+      const linkedWholesalers = await getRetailerLinkedWholesalers(customer.id);
+      res.json({
+        authenticated: true,
+        role: customer.role,
+        userId: customer.id,
+        name: customer.ownerName ?? customer.shopName,
+        shopName: customer.shopName,
+        uniqueVendorId: null,
+        wholesalerShopName: linkedWholesalers[0]?.shopName ?? null,
+        linkedWholesalers,
+      });
+      return;
+    } else {
+      const [admin] = await db
+        .select()
+        .from(adminsTable)
+        .where(or(eq(adminsTable.id, decoded.userId), eq(adminsTable.username, decoded.username || "")))
+        .limit(1);
+
+      if (!admin) {
+        res.status(401).json({ message: "User account not found" });
+        return;
+      }
+
+      if (admin.role === "wholesaler" && admin.status === "PENDING") {
+        res.status(403).json({ message: "તમારું એકાઉન્ટ હજી સુપર એડમિનના અપ્રુવલ માટે બાકી છે!" });
+        return;
+      }
+      if (admin.status === "DEACTIVATED") {
+        res.status(403).json({ message: "તમારું સબ્સ્ક્રિપ્શન પેમેન્ટ બાકી છે, કૃપા કરીને સુપર એડમિનનો સંપર્ક કરો." });
+        return;
+      }
+
+      req.session.role = admin.role as any;
+      req.session.userId = admin.id;
+      req.session.name = admin.name;
+      req.session.shopName = admin.shopName ?? undefined;
+      req.session.uniqueVendorId = admin.uniqueVendorId ?? undefined;
+      req.session.username = admin.username;
+
+      res.json({
+        authenticated: true,
+        role: admin.role,
+        userId: admin.id,
+        name: admin.name,
+        shopName: admin.shopName ?? null,
+        uniqueVendorId: admin.uniqueVendorId ?? null,
+        status: admin.status,
+        wholesalerShopName: null,
+        linkedWholesalers: [],
+      });
+      return;
+    }
+  }
+
   if (!req.session.role) {
     res.json({
       authenticated: false,

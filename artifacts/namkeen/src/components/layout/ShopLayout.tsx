@@ -95,11 +95,13 @@ export function ShopLayout({ children }: { children: ReactNode }) {
   const handleLogout = () => {
     logout.mutate(undefined, {
       onSuccess: () => {
+        localStorage.removeItem('supplygrid_token');
         useCart.getState().clearCart();
         queryClient.clear();
         setLocation("/login");
       },
       onError: () => {
+        localStorage.removeItem('supplygrid_token');
         useCart.getState().clearCart();
         queryClient.clear();
         setLocation("/login");

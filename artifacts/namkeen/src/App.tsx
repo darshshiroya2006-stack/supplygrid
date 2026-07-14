@@ -2,6 +2,51 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+import { setAuthTokenGetter, useGetCurrentUser } from "@workspace/api-client-react";
+import { Loader2 } from "lucide-react";
+
+// Initialize global headers/fetch interceptor immediately on module load
+const initialToken = localStorage.getItem("supplygrid_token");
+if (initialToken) {
+  try {
+    // @ts-ignore
+    if (typeof axios !== 'undefined') {
+      // @ts-ignore
+      axios.defaults.headers.common['Authorization'] = `Bearer ${initialToken}`;
+    }
+  } catch (e) {}
+}
+
+// 1. setAuthTokenGetter for customFetch
+setAuthTokenGetter(() => localStorage.getItem("supplygrid_token"));
+
+// 2. Global fetch override for standard fetch calls
+const originalFetch = window.fetch;
+window.fetch = async (input, init) => {
+  const currentToken = localStorage.getItem("supplygrid_token");
+  if (currentToken) {
+    let isApiUrl = false;
+    if (typeof input === "string") {
+      isApiUrl = input.startsWith("/") || input.includes(window.location.host);
+    } else if (input instanceof URL) {
+      isApiUrl = input.pathname.startsWith("/") || input.host === window.location.host;
+    } else if (input && typeof input === "object" && "url" in input) {
+      const urlStr = (input as any).url;
+      isApiUrl = urlStr.startsWith("/") || urlStr.includes(window.location.host);
+    }
+
+    if (isApiUrl) {
+      const headers = new Headers(init?.headers);
+      if (!headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${currentToken}`);
+      }
+      return originalFetch(input, { ...init, headers });
+    }
+  }
+  return originalFetch(input, init);
+};
 
 import Landing from "@/pages/index";
 import Login from "@/pages/login";
@@ -40,6 +85,7 @@ function Router() {
       <Route path="/signup/wholesaler" component={SignupWholesaler} />
       <Route path="/signup/retailer" component={SignupRetailer} />
       <Route path="/retailer" component={RetailerDashboard} />
+      <Route path="/retailer/dashboard" component={RetailerDashboard} />
       <Route path="/super-admin" component={SuperAdminDashboard} />
       
       {/* Shop Routes */}
@@ -66,12 +112,64 @@ function Router() {
   );
 }
 
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const [location, setLocation] = useLocation();
+  const { data: user, isLoading } = useGetCurrentUser();
+  const token = localStorage.getItem("supplygrid_token");
+
+  // Determine if we are on login or landing route
+  const isAuthRoute = location === "/" || location === "/login";
+
+  useEffect(() => {
+    if (token) {
+      try {
+        // @ts-ignore
+        if (typeof axios !== 'undefined') {
+          // @ts-ignore
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (e) {}
+    }
+  }, [token]);
+
+  useEffect(() => {
+    // If token exists, is valid, and we are on an auth route, redirect to correct landing page
+    if (token && user?.authenticated) {
+      if (isAuthRoute) {
+        const isWholesaler = user.role === "wholesaler" || user.role === "admin" || user.role === "super_admin";
+        if (user.role === "super_admin") {
+          setLocation("/super-admin");
+        } else {
+          setLocation(isWholesaler ? "/admin/products" : "/retailer/dashboard");
+        }
+      }
+    } else if (token && !isLoading && !user?.authenticated) {
+      // If token exists but verification failed, remove the invalid token
+      localStorage.removeItem("supplygrid_token");
+    }
+  }, [token, user, isLoading, isAuthRoute, setLocation]);
+
+  // If token exists and we are verifying on an auth route, show loading spinner to prevent flash of login page
+  if (token && isAuthRoute && isLoading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground mt-2">Checking session...</p>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <AuthGuard>
+            <Router />
+          </AuthGuard>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
