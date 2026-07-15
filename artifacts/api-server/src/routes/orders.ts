@@ -17,6 +17,49 @@ import { z } from "zod";
 
 const router: IRouter = Router();
 
+// Connection tracking for Wholesaler Dashboard Server-Sent Events (SSE)
+interface SseClient {
+  id: string;
+  vendorId: number;
+  res: any;
+}
+const sseClients = new Set<SseClient>();
+
+// Real-time notification SSE stream
+router.get("/realtime/stream", requireAdmin, (req, res) => {
+  const vendorId = req.session.userId;
+  if (!vendorId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // Disable buffering for Nginx
+  res.flushHeaders();
+
+  const clientId = Math.random().toString(36).substring(2);
+  const client: SseClient = { id: clientId, vendorId: Number(vendorId), res };
+  sseClients.add(client);
+
+  console.log(`[SSE] Wholesaler ${vendorId} connected. Total clients: ${sseClients.size}`);
+
+  // Send initial connection payload
+  res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+
+  // Send a heartbeat every 20 seconds to prevent timeout
+  const heartbeatInterval = setInterval(() => {
+    res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
+  }, 20000);
+
+  req.on("close", () => {
+    clearInterval(heartbeatInterval);
+    sseClients.delete(client);
+    console.log(`[SSE] Wholesaler ${vendorId} disconnected. Total clients: ${sseClients.size}`);
+  });
+});
+
 function computePaymentStatus(paidAmount: number, totalAmount: number): string {
   if (paidAmount <= 0) return "pending";
   if (paidAmount >= totalAmount) return "fully_paid";
@@ -323,6 +366,22 @@ router.post("/", requireCustomer, async (req, res) => {
         .returning();
 
       await tx.insert(orderItemsTable).values(lines.map((l) => ({ ...l, orderId: order.id })));
+
+      // Broadcast the new order event via SSE
+      const vendorIdNum = Number(finalWholesalerId);
+      for (const client of sseClients) {
+        if (client.vendorId === vendorIdNum) {
+          try {
+            client.res.write(`data: ${JSON.stringify({
+              type: "new_order",
+              orderId: order.id,
+              vendorId: vendorIdNum
+            })}\n\n`);
+          } catch (err) {
+            console.error("[SSE] Failed to send order event to client:", err);
+          }
+        }
+      }
 
       return order;
     });

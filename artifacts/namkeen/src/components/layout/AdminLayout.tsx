@@ -128,6 +128,65 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     }
   }, [showProfileSettings, settingsTab]);
 
+  // Real-time Notification Listener (SSE)
+  useEffect(() => {
+    if (!user?.authenticated || (user.role !== "admin" && user.role !== "wholesaler")) {
+      return;
+    }
+
+    if ("Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission().then((permission) => {
+          console.log("[Notification] Permission status:", permission);
+        });
+      }
+    }
+
+    console.log("[SSE] Connecting to real-time stream...");
+    const eventSource = new EventSource("/api/orders/realtime/stream");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        console.log("[SSE] Message received:", payload);
+
+        if (payload.type === "new_order") {
+          const audio = new Audio("/sounds/notification-bell.mp3");
+          audio.play().catch((err) => {
+            console.warn("[Audio] Audio playback failed:", err);
+          });
+
+          toast({
+            title: "New Order Received!",
+            description: "A retail store just placed a new wholesale order on SupplyGrid.",
+          });
+
+          queryClient.invalidateQueries();
+
+          if (document.visibilityState === "hidden") {
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("New Order Received!", {
+                body: "A retail store just placed a new wholesale order on SupplyGrid.",
+                icon: "/logo.png"
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[SSE] Failed to parse SSE event data:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("[SSE] EventSource failed/disconnected:", err);
+    };
+
+    return () => {
+      console.log("[SSE] Closing real-time stream connection.");
+      eventSource.close();
+    };
+  }, [user, queryClient, toast]);
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSaving(true);
