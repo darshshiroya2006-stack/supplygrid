@@ -135,11 +135,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     }
 
     if ("Notification" in window) {
-      if (Notification.permission === "default") {
-        Notification.requestPermission().then((permission) => {
-          console.log("[Notification] Permission status:", permission);
-        });
-      }
+      Notification.requestPermission().then((permission) => {
+        console.log("[Notification] Permission status:", permission);
+      });
     }
 
     console.log("[SSE] Connecting to real-time stream...");
@@ -151,10 +149,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         console.log("[SSE] Message received:", payload);
 
         if (payload.type === "new_order") {
-          const audio = new Audio("/sounds/notification-bell.mp3");
-          audio.play().catch((err) => {
-            console.warn("[Audio] Audio playback failed:", err);
-          });
+          if (document.visibilityState === "visible") {
+            const audio = new Audio('/sounds/notification-bell.mp3');
+            audio.play().catch((err) => {
+              console.warn("[Audio] Audio playback failed:", err);
+            });
+          }
 
           toast({
             title: "New Order Received!",

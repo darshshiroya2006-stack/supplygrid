@@ -63,6 +63,15 @@ self.addEventListener("fetch", (event) => {
 // Background Sync Listener
 self.addEventListener("sync", (event) => {
   console.log("[Service Worker] Background Sync tag:", event.tag);
+  if (event.tag === "order-sync") {
+    event.waitUntil(
+      self.registration.showNotification("New Order Received!", {
+        body: "A retail store just placed a new wholesale order on SupplyGrid.",
+        icon: "/logo.png",
+        badge: "/logo.png"
+      })
+    );
+  }
 });
 
 // Push Notification Listener
