@@ -8,6 +8,7 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './addOrderItemBody';
 export * from './authSession';
 export * from './authSessionRole';
 export * from './convertGstResponse';

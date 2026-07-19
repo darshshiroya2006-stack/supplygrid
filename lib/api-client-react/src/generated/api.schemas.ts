@@ -401,6 +401,11 @@ export const ListOrdersRange = {
   all: 'all',
 } as const;
 
+export type AddOrderItemBody = {
+  product_id: number;
+  quantity: number;
+};
+
 export type ListSupplierEntriesParams = {
 year?: number;
 month?: string;

@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import {
   useGetOrder,
   useDeleteOrder,
+  useListProducts,
   getListOrdersQueryKey,
   getGetOrderQueryKey,
   getListProductsQueryKey,
@@ -28,6 +29,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const inrFmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0, maximumFractionDigits: 10 }).format(v);
@@ -43,12 +51,15 @@ export default function AdminOrderDetails() {
     query: { enabled: !!orderId, queryKey: getGetOrderQueryKey(orderId) },
   });
   const deleteOrder = useDeleteOrder();
+  const { data: products } = useListProducts();
 
   // Local draft states for live editing
   const [items, setItems] = useState<any[]>([]);
   const [serverSavedItems, setServerSavedItems] = useState<any[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedProductVal, setSelectedProductVal] = useState<string>("");
+
 
   useEffect(() => {
     if (order && !hasLoaded) {
@@ -105,6 +116,53 @@ export default function AdminOrderDetails() {
   const handleItemDelete = (productId: number) => {
     setItems((prev) => prev.filter((item) => item.productId !== productId));
   };
+
+  const handleAddNewItem = async (productId: number) => {
+    const prod = products?.find((p: any) => p.id === productId);
+    if (!prod) return;
+
+    if (items.some((item) => item.productId === productId)) {
+      toast.error("Product already exists in the invoice");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/customers/${order?.customerId}/pricing`);
+      if (!res.ok) throw new Error("Failed to fetch customer pricing");
+      const pricingList = await res.json();
+      const pricingItem = pricingList.find((p: any) => p.productId === productId);
+      const finalPrice = (pricingItem && pricingItem.customPrice !== null)
+        ? Number(pricingItem.customPrice)
+        : Number(prod.basePrice);
+
+      const newItem = {
+        id: Date.now(),
+        productId: prod.id,
+        productName: prod.name,
+        unit: prod.unit || "KG",
+        quantity: 1,
+        unitPrice: finalPrice,
+        lineTotal: finalPrice * 1,
+      };
+
+      setItems((prev) => [...prev, newItem]);
+      toast.success(`Added ${prod.name} to invoice`);
+    } catch (err) {
+      console.error("Failed to fetch price override, using base price:", err);
+      const newItem = {
+        id: Date.now(),
+        productId: prod.id,
+        productName: prod.name,
+        unit: prod.unit || "KG",
+        quantity: 1,
+        unitPrice: Number(prod.basePrice),
+        lineTotal: Number(prod.basePrice) * 1,
+      };
+      setItems((prev) => [...prev, newItem]);
+      toast.success(`Added ${prod.name} to invoice`);
+    }
+  };
+
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -461,8 +519,39 @@ Thank you for your business!`;
                       </TableCell>
                     </TableRow>
                   ))}
+                  {/* Elegant inline action area for adding a product */}
+                  <TableRow className="bg-gray-50/50 print:hidden hover:bg-gray-50/50">
+                    <TableCell colSpan={7} className="p-4 border-t border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-gray-500">Add Product:</span>
+                        <Select
+                          value={selectedProductVal}
+                          onValueChange={(val) => {
+                            if (val) {
+                              handleAddNewItem(Number(val));
+                              setSelectedProductVal("");
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[280px] bg-white border-gray-200 text-gray-900 font-medium h-9">
+                            <SelectValue placeholder="Select a product to add..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products
+                              ?.filter((p: any) => !items.some((item) => item.productId === p.id))
+                              .map((p: any) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.name} ({p.unit}) - {inrFmt(p.basePrice)}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
+
             </div>
 
             {/* ── Totals + Notes ── */}

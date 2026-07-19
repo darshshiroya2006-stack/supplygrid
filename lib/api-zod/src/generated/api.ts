@@ -598,6 +598,52 @@ export const ConvertOrderGstResponse = zod.object({
 
 
 /**
+ * @summary Add or update item inside an existing order (admin)
+ */
+export const AddOrderItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddOrderItemBody = zod.object({
+  "product_id": zod.number(),
+  "quantity": zod.number()
+})
+
+export const AddOrderItemResponse = zod.object({
+  "id": zod.number(),
+  "customerId": zod.number(),
+  "vendorId": zod.number().nullish(),
+  "customerName": zod.string(),
+  "shopName": zod.string(),
+  "status": zod.string(),
+  "billingType": zod.string(),
+  "sequenceNumber": zod.number(),
+  "cgst": zod.number(),
+  "sgst": zod.number(),
+  "totalAmount": zod.number(),
+  "paidAmount": zod.number(),
+  "paymentStatus": zod.string(),
+  "notes": zod.string().nullish(),
+  "phone": zod.string(),
+  "createdAt": zod.string(),
+  "sellerShopName": zod.string(),
+  "sellerName": zod.string(),
+  "sellerPhone": zod.string(),
+  "sellerAddress": zod.string(),
+  "sellerGstin": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "unit": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "lineTotal": zod.number()
+}))
+})
+
+
+/**
  * @summary List all wholesale suppliers (admin)
  */
 export const ListSuppliersResponseItem = zod.object({

@@ -904,4 +904,164 @@ router.patch("/:id/convert-gst", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── POST /orders/:id/add-item — add or update item inside an existing order ─────────────────────
+router.post("/:id/add-item", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const productId = Number(req.body.product_id || req.body.productId);
+  const quantity = Number(req.body.quantity || req.body.qty || 1);
+
+  if (isNaN(productId) || isNaN(quantity) || quantity <= 0) {
+    res.status(400).json({ message: "Invalid product_id or quantity" });
+    return;
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const vendorCond =
+        req.session.role === "wholesaler"
+          ? eq(ordersTable.vendorId, req.session.userId!)
+          : sql`1=1`;
+
+      const [order] = await tx
+        .select()
+        .from(ordersTable)
+        .where(and(eq(ordersTable.id, id), vendorCond))
+        .limit(1);
+      if (!order) return { status: 404, message: "Order not found" };
+
+      // Fetch product catalog item
+      const [product] = await tx
+        .select()
+        .from(productsTable)
+        .where(eq(productsTable.id, productId))
+        .limit(1);
+      if (!product) return { status: 404, message: "Product not found" };
+
+      // Get customer pricing matrix override value
+      const [customPricing] = await tx
+        .select()
+        .from(customerPricingTable)
+        .where(
+          and(
+            eq(customerPricingTable.customerId, order.customerId),
+            eq(customerPricingTable.productId, productId)
+          )
+        )
+        .limit(1);
+      const unitPrice = customPricing?.customPrice !== null && customPricing?.customPrice !== undefined
+        ? Number(customPricing.customPrice)
+        : Number(product.basePrice);
+
+      // Check if product already exists in order items
+      const [existingItem] = await tx
+        .select()
+        .from(orderItemsTable)
+        .where(
+          and(
+            eq(orderItemsTable.orderId, id),
+            eq(orderItemsTable.productId, productId)
+          )
+        )
+        .limit(1);
+
+      let finalQty = quantity;
+      if (existingItem) {
+        // Update existing item quantity
+        finalQty = Number(existingItem.quantity) + quantity;
+        const lineTotal = finalQty * unitPrice;
+        await tx
+          .update(orderItemsTable)
+          .set({
+            quantity: String(finalQty),
+            unitPrice: String(unitPrice),
+            lineTotal: String(lineTotal),
+          })
+          .where(eq(orderItemsTable.id, existingItem.id));
+      } else {
+        // Insert new order item
+        const lineTotal = finalQty * unitPrice;
+        await tx.insert(orderItemsTable).values({
+          orderId: id,
+          productId: productId,
+          productName: product.name,
+          unit: product.unit || "KG",
+          quantity: String(finalQty),
+          unitPrice: String(unitPrice),
+          lineTotal: String(lineTotal),
+        });
+      }
+
+      // Re-fetch all items for this order to recalculate total
+      const allItems = await tx
+        .select()
+        .from(orderItemsTable)
+        .where(eq(orderItemsTable.orderId, id));
+
+      let subtotal = 0;
+      for (const item of allItems) {
+        subtotal += Number(item.lineTotal);
+      }
+
+      let cgstVal = 0;
+      let sgstVal = 0;
+      let finalTotal = subtotal;
+      if (order.billingType === "with_gst") {
+        cgstVal = subtotal * 0.025;
+        sgstVal = subtotal * 0.025;
+        finalTotal = subtotal + cgstVal + sgstVal;
+      }
+
+      const paidAmount = Number(order.paidAmount);
+      const paymentStatus = computePaymentStatus(paidAmount, finalTotal);
+
+      // If order is processed, sync stockEntries
+      if (order.status === "processed") {
+        await tx.delete(stockEntriesTable).where(eq(stockEntriesTable.orderId, id));
+
+        for (const item of allItems) {
+          await tx.insert(stockEntriesTable).values({
+            date: new Date().toISOString().split("T")[0],
+            supplierName: "CUSTOMER ORDER DEDUCTION",
+            productName: item.productName,
+            quantityKg: String(-Number(item.quantity)),
+            totalPrice: "0",
+            amountPaidToSupplier: "0",
+            purchasePaymentStatus: "fully_paid",
+            notes: `Order #${order.sequenceNumber ?? order.id} fulfillment (adjusted)`,
+            productId: item.productId,
+            orderId: id,
+            vendorId: order.vendorId,
+          });
+        }
+      }
+
+      // Sync product stocks
+      await syncProductStock(productId, tx);
+
+      const [updated] = await tx
+        .update(ordersTable)
+        .set({
+          cgst: String(cgstVal),
+          sgst: String(sgstVal),
+          totalAmount: String(finalTotal),
+          paymentStatus,
+        })
+        .where(and(eq(ordersTable.id, id), vendorCond))
+        .returning();
+
+      return { status: 200, data: updated };
+    });
+
+    if (result.status !== 200) {
+      res.status(result.status).json({ message: result.message });
+      return;
+    }
+
+    res.json(await loadFullOrder(id));
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to add item to order" });
+  }
+});
+
 export default router;
+

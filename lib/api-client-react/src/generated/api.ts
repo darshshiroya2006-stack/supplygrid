@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActivityItem,
+  AddOrderItemBody,
   AuthSession,
   ConvertGstResponse,
   CreateCustomerBody,
@@ -2008,6 +2009,78 @@ export const useConvertOrderGst = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getConvertOrderGstMutationOptions(options));
+    }
+
+export const getAddOrderItemUrl = (id: number,) => {
+
+
+
+
+  return `/api/orders/${id}/add-item`
+}
+
+/**
+ * @summary Add or update item inside an existing order (admin)
+ */
+export const addOrderItem = async (id: number,
+    addOrderItemBody: AddOrderItemBody, options?: RequestInit): Promise<Order> => {
+
+  return customFetch<Order>(getAddOrderItemUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addOrderItemBody)
+  }
+);}
+
+
+
+
+
+export const getAddOrderItemMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addOrderItem>>, TError,{id: number;data: BodyType<AddOrderItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addOrderItem>>, TError,{id: number;data: BodyType<AddOrderItemBody>}, TContext> => {
+
+const mutationKey = ['addOrderItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addOrderItem>>, {id: number;data: BodyType<AddOrderItemBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addOrderItem(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddOrderItemMutationResult = NonNullable<Awaited<ReturnType<typeof addOrderItem>>>
+    export type AddOrderItemMutationBody = BodyType<AddOrderItemBody>
+    export type AddOrderItemMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add or update item inside an existing order (admin)
+ */
+export const useAddOrderItem = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addOrderItem>>, TError,{id: number;data: BodyType<AddOrderItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addOrderItem>>,
+        TError,
+        {id: number;data: BodyType<AddOrderItemBody>},
+        TContext
+      > => {
+      return useMutation(getAddOrderItemMutationOptions(options));
     }
 
 export const getListSuppliersUrl = () => {

@@ -489,9 +489,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/ConvertGstResponse"
 
-
+  /orders/{id}/add-item:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      operationId: addOrderItem
+      tags: [orders]
+      summary: Add or update item inside an existing order (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - product_id
+                - quantity
+              properties:
+                product_id:
+                  type: integer
+                quantity:
+                  type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
 
   /stock/suppliers:
+
     get:
       operationId: listSuppliers
       tags: [stock]
