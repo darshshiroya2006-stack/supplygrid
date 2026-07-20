@@ -567,7 +567,7 @@ export default function AdminSupplierLedger() {
                 {filteredEntries?.map((entry) => {
                   const prod = products?.find(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase());
                   const isUnit = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
-                  const cf = prod?.conversionFactor || 30;
+                  const cf = prod?.conversionFactor && prod.conversionFactor > 0 ? prod.conversionFactor : 1;
                   const boxes = Math.floor(entry.quantityKg / cf);
                   
                   let mainUnitName = prod?.mainUnit || "Main Unit";

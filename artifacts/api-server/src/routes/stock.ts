@@ -342,6 +342,17 @@ router.post("/", requireAdmin, async (req, res) => {
       })
       .returning();
     resolvedProductId = newProduct.id;
+  } else if (resolvedProductId) {
+    const prodUpdates: Record<string, unknown> = {};
+    if (b.unit !== undefined && b.unit !== null) prodUpdates.unit = b.unit;
+    if (b.mainUnit !== undefined && b.mainUnit !== null) prodUpdates.mainUnit = b.mainUnit;
+    if (b.subUnit !== undefined && b.subUnit !== null) prodUpdates.subUnit = b.subUnit;
+    if (b.conversionFactor !== undefined && b.conversionFactor !== null && b.conversionFactor > 0) {
+      prodUpdates.conversionFactor = b.conversionFactor;
+    }
+    if (Object.keys(prodUpdates).length > 0) {
+      await db.update(productsTable).set(prodUpdates).where(eq(productsTable.id, resolvedProductId));
+    }
   }
 
   const [created] = await db
@@ -434,6 +445,20 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   if (b.quantityKg !== undefined) updates.quantityKg = String(b.quantityKg);
   if (b.totalPrice !== undefined) updates.totalPrice = String(b.totalPrice);
   if (b.notes !== undefined) updates.notes = b.notes;
+
+  const targetProductId = (updates.productId as number | undefined) || existing.productId;
+  if (targetProductId) {
+    const prodUpdates: Record<string, unknown> = {};
+    if (b.unit !== undefined && b.unit !== null) prodUpdates.unit = b.unit;
+    if (b.mainUnit !== undefined && b.mainUnit !== null) prodUpdates.mainUnit = b.mainUnit;
+    if (b.subUnit !== undefined && b.subUnit !== null) prodUpdates.subUnit = b.subUnit;
+    if (b.conversionFactor !== undefined && b.conversionFactor !== null && b.conversionFactor > 0) {
+      prodUpdates.conversionFactor = b.conversionFactor;
+    }
+    if (Object.keys(prodUpdates).length > 0) {
+      await db.update(productsTable).set(prodUpdates).where(eq(productsTable.id, targetProductId));
+    }
+  }
 
   const [updated] = await db
     .update(stockEntriesTable)

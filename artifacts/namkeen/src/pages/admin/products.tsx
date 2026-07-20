@@ -384,7 +384,7 @@ export default function AdminProducts() {
                   const isLowStock = stock > 0 && stock < 15;
 
                   const isUnitBased = (product.unit && product.unit.toLowerCase().includes("unit"));
-                  const convFactor = product.conversionFactor && product.conversionFactor > 0 ? product.conversionFactor : 30;
+                  const convFactor = product.conversionFactor && product.conversionFactor > 0 ? product.conversionFactor : 1;
                   const hasConversion = isUnitBased;
                   const boxesLeft = Math.floor(stock / convFactor);
                   const packetsLeft = stock % convFactor;
