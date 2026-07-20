@@ -568,12 +568,27 @@ export default function AdminSupplierLedger() {
                   const prod = products?.find(p => p.name.trim().toLowerCase() === entry.productName.trim().toLowerCase());
                   const isUnit = prod ? (prod.unit && !prod.unit.toLowerCase().includes("kg")) : false;
                   const cf = prod?.conversionFactor && prod.conversionFactor > 0 ? prod.conversionFactor : 1;
-                  const boxes = Math.floor(entry.quantityKg / cf);
                   
-                  let mainUnitName = prod?.mainUnit || "Main Unit";
+                  let mainUnitName = (prod?.mainUnit && isNaN(Number(prod.mainUnit))) ? prod.mainUnit : "Main Unit";
                   if (mainUnitName === "Boxes" || mainUnitName === "Box") mainUnitName = "Main Unit";
+
+                  let subUnitName = (prod?.subUnit && isNaN(Number(prod.subUnit))) ? prod.subUnit : "Sub-Unit";
+                  if (subUnitName === "Packets" || subUnitName === "Packet") subUnitName = "Sub-Unit";
                   
-                  const displayQty = isUnit ? `${boxes} ${mainUnitName}` : `${entry.quantityKg} KG`;
+                  let displayQty = `${entry.quantityKg} KG`;
+                  if (isUnit) {
+                    if (cf > 1) {
+                      const boxes = Math.floor(entry.quantityKg / cf);
+                      const rem = Math.round(entry.quantityKg % cf);
+                      if (rem > 0) {
+                        displayQty = `${boxes} ${mainUnitName}, ${rem} ${subUnitName} (${entry.quantityKg} Total ${subUnitName}s)`;
+                      } else {
+                        displayQty = `${boxes} ${mainUnitName} (${entry.quantityKg} Total ${subUnitName}s)`;
+                      }
+                    } else {
+                      displayQty = `${entry.quantityKg} ${subUnitName}s`;
+                    }
+                  }
 
                   return (
                     <TableRow key={entry.id}>
